@@ -1,0 +1,90 @@
+model restore 'yuya'
+
+fish define fenceng
+
+    layerNum = 3
+    
+    secNum = 15
+
+    ; ypos0 = -wly/2
+    ypos0 = wall.pos.y(wpDown)
+
+    ;jiange = math.floor(wly/layerNum)
+    ; set the height of the upper surface of each layer
+    array heightArray(3)
+    heightArray(1) = 5
+    heightArray(2) = wly-5
+    heightArray(3) = wly
+    ;heightArray(3) = 60
+    ;heightArray(4) = 80
+    ;heightArray(5) = 120
+    ;heightArray(6) = 150
+    ;heightArray(7) = 190
+    ;heightArray(8) = 220
+    ;heightArray(9) = wly
+    
+    xpos0 = wall.pos.x(wpLeft)
+    
+    secInterval = math.floor(wlx/secNum)
+
+    loop local i(1,layerNum)
+
+        yposUp = ypos0 + heightArray(i)
+        
+        if i-1=0 then
+        
+            yposDown = ypos0
+        
+        else
+
+            yposDown = ypos0 + heightArray(i-1)
+            
+        endif
+        
+        local layerName = string(i)
+
+        command
+
+            ball group @layerName slot 'layer' range position-y @yposDown @yposUp
+
+        endcommand
+
+    endloop
+    
+    loop local j(1,secNum)
+    
+        xposRight = xpos0 + j * secInterval
+        
+        xposLeft = xpos0 + (j-1) * secInterval
+        
+        secName = string(j)
+
+        command
+
+            ball group @secName slot 'section' range position-x @xposLeft @xposRight
+
+        endcommand
+        
+    endloop
+    
+    if xposRight<(wlx/2-rdmax) then
+    
+        xposRight = xpos0 + wlx
+        
+        xposLeft = xpos0 + secNum * secInterval
+        
+        secName = string(secNum+1)
+
+        command
+
+            ball group @secName slot 'section' range position-x @xposLeft @xposRight
+
+        endcommand
+    
+    endif
+    
+end
+
+@fenceng
+
+model save 'fenceng'

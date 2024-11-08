@@ -1,0 +1,9 @@
+images/
+*.sav
+*.png
+*.csv
+*.pdf
+*.xlsx
+*.temp
+*.backup
+*.log

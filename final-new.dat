@@ -1,0 +1,69 @@
+model restore 'pingheng'
+
+ball attribute velocity 0 spin 0 displacement 0
+
+[step_distance = 30]
+
+[xpos0 = -20]
+
+[step_interval = 50000]
+
+def kaiwa
+
+    loop i(1,10)
+
+    name = 'result' + string(i)
+
+        command
+
+            ball del range x [xpos0 +(i-1)*step_distance] [xpos0 +i*step_distance] group 'layer=1'
+
+            save @name
+
+            cycle [step_interval]
+
+        endcommand
+
+    endloop
+
+end
+
+fish define kaiwa_new
+
+    loop i(5,secNum-2)
+    
+    section_name = string(i)
+
+    name = 'result' + string(i)
+    
+    loop foreach local bp ball.list                                                         ; loop over all defined contacts
+
+        if ball.isgroup(bp, '1', 'layer')                                                      ; if the type of the contact `cp` is 'ball-ball'
+
+            if ball.isgroup(bp, section_name, 'section')   ; if piece1 and piece2 of the contact `cp` belong to different ball group
+
+                void = ball.delete(bp)                                         ; set the contact group of the contact `cp` to 'pbond_boundary'
+                
+            endif
+
+        endif
+
+    endloop
+
+        command
+        
+            model save @name
+
+            model solve cycle [step_interval] or ratio-average 1e-3
+            
+            ;model solve
+
+        endcommand
+
+    endloop
+
+end
+
+@kaiwa_new
+
+model save 'final'

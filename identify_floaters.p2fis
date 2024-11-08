@@ -1,0 +1,19 @@
+fish define identify_floaters
+
+    loop foreach local ball ball.list
+    
+        ball.group.remove(ball, 'floaters')
+        
+        local contactmap=ball.contactmap(ball)
+        
+        local size=map.size(contactmap)
+        
+        if size <= 1 then
+        
+            ball.group(ball)='floaters'
+            
+        endif
+        
+    endloop
+    
+end

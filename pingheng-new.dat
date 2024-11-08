@@ -1,0 +1,119 @@
+model restore 'fenceng'
+
+fish callback remove @sevro_walls -1.0
+
+wall delete walls range id 3
+
+model clean all
+
+[pb_modules=1e9]
+
+[emod000=15e9]
+
+[ten_=1.5e6]
+
+[coh_=1.5e6]
+
+[fric=0.1]
+
+[kratio=2.]
+
+contact model 'linearpbond' range contact type 'ball-ball'
+
+contact method deform emod [emod000] krat [kratio] range contact type 'ball-ball'
+
+contact method pb_deform emod [pb_modules] kratio [kratio] range contact type 'ball-ball'
+
+contact property dp_nratio 0.5 dp_sratio 0.0 range contact type 'ball-ball'
+
+contact property fric [fric] range contact type 'ball-ball'
+
+contact property pb_rmul 1 pb_mcf 0.1 lin_mode 1 pb_ten [ten_] pb_coh [coh_] pb_fa 38 range contact type 'ball-ball'
+
+contact method bond gap [rdmin] range contact type 'ball-ball'
+
+fish define contact_group
+
+    loop foreach local cp contact.list                                                         ; loop over all defined contacts
+
+        if type.pointer(cp) = 'ball-ball'                                                      ; if the type of the contact `cp` is 'ball-ball'
+
+            if ball.group(contact.end1(cp), 'layer') # ball.group(contact.end2(cp), 'layer')   ; if piece1 and piece2 of the contact `cp` belong to different ball group
+
+                contact.group(cp, "boundary") = 'pbond'                                         ; set the contact group of the contact `cp` to 'pbond_boundary'
+                
+            else
+            
+                local ball_group = ball.group(contact.end1(cp), 'layer')                        ; get the ball group with 'layer' slot of the contact `cp`
+                contact.group(cp, "ballball") = ball_group                                      ; set the contact group of the contact `cp` to "contact_" + ball_group (with "Default=" removed)
+
+            endif
+
+         endif
+
+    endloop
+
+end
+
+@contact_group
+
+[pb_modules=1e9]
+
+[emod000=1e9]
+
+[ten_=2e5]
+
+[coh_=2e5]
+
+[fric=0.1]
+
+[kratio=2.]
+
+; contact groupbehavior contact 
+; The groupbehavior keyword is deprecated. Use the match keyword of the group range element for similar behavior.
+
+contact model 'linearpbond' range contact group 'boundary=pbond'
+
+contact method bond gap 0.5 range contact group 'boundary=pbond'
+
+contact method deform emod [emod000] krat [kratio] range contact group 'boundary=pbond'
+
+contact method pb_deform emod [pb_modules] kratio [kratio] range contact group 'boundary=pbond'
+
+contact property dp_nratio 0.5 dp_sratio 0.0 range contact group 'boundary=pbond'
+
+contact property fric [fric] range contact group 'boundary=pbond'
+
+contact property pb_rmul 1 pb_mcf 1 lin_mode 1 pb_ten [ten_] pb_coh [coh_] pb_fa 60 range contact group 'boundary=pbond'
+
+
+
+contact model 'linearpbond' range contact group 'layer=1'
+
+contact method bond gap 0.5 range contact group 'layer=1'
+
+contact method deform emod [emod000] krat [kratio] range contact group 'layer=1'
+
+contact method pb_deform emod [pb_modules] kratio [kratio] range contact group 'layer=1'
+
+contact property dp_nratio 0.5 dp_sratio 0.0 range contact group 'layer=1'
+
+contact property fric [fric] range contact group 'layer=1'
+
+contact property pb_rmul 1 pb_mcf 1 lin_mode 1 pb_ten [ten_] pb_coh [coh_] pb_fa 60 range contact group 'layer=1'
+
+model gravity [9.8*wlx/wly]
+
+model cycle 1
+
+model solve
+
+; echo-line 'off'
+
+; program call 'fracture.p2fis'
+
+; @track_init
+
+; echo-line 'on'
+
+model save 'pingheng'

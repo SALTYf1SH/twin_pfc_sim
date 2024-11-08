@@ -1,0 +1,206 @@
+model new
+
+model deterministic off
+
+[ravg       =   2e-1   ]  ; ball average radius  [m]
+[rdev       =   0.5    ]  ; ball relative radius deviation [-]
+[dens       =   1.0e3  ]  ; ball density  [kg/m3]
+[poros      =   0.03   ]  ; initial porosity [-]
+
+fish define par
+    
+    ;width=400
+    width=80
+    
+    height=20
+    
+    rdmax=0.4
+    
+    rdmin=0.5
+    
+    poro=0.08
+    
+end
+
+@par
+
+model domain extent [-width*5] [height*5]
+
+model random 10001
+
+wall generate box [-width*0.5] [width*0.5] [-height*0.5] [height*0.5] expand 1.2
+
+;ball distribute porosity @poros resolution @ravg radius [1.0-0.5*rdev] [1.0+0.5*rdev] box [-width*0.5] [width*0.5] [-height*0.5] [height*0.5]
+
+ball distribute porosity @poro radius @rdmin @rdmax box [-width*0.5] [width*0.5] [-height*0.5] [height*0.5]
+
+contact cmat default model linear method deformability emod 100e6 kratio 1.5
+
+ball attribute density [dens] damp 0.7
+
+model cycle 2000 calm 10
+
+model solve
+
+model save 'sample'
+
+model restore 'sample'
+
+[txx=-1e6]
+
+[tyy=-1e6]
+
+[sevro_factor=0.5]
+
+[do_xSevro=true]
+
+[do_ySevro=true]
+
+[sevro_freq=100]
+
+[timestepNow=global.step-1]
+
+fish define computer_chiCun
+    
+    wlx=wall.pos.x(wpRight)-wall.pos.x(wpLeft)
+    
+    wly=wall.pos.y(wpUp)-wall.pos.y(wpDown)
+    
+end
+
+fish define compute_stress
+    
+    computer_chiCun
+    
+    wxss=-(wall.force.contact.x(wpRight)-wall.force.contact.x(wpLeft))*0.5/wly
+    
+    wyss=-(wall.force.contact.y(wpUp)-wall.force.contact.y(wpDown))*0.5/wlx
+    
+end
+
+fish define get_g(fac)
+    
+    gx=0
+    
+    gy=0
+    
+    zongKNX=100e6*2*10
+    
+    zongKNY=100e6*2*10
+    
+    loop foreach ct wall.contactmap(wpLeft)
+        
+        zongKNX+=contact.prop(ct,"kn")
+        
+    endloop
+    
+    loop foreach ct wall.contactmap(wpRight)
+        
+        zongKNX+=contact.prop(ct,"kn")
+        
+    endloop
+    
+    loop foreach ct wall.contactmap(wpUp)
+        
+        zongKNY+=contact.prop(ct,"kn")
+        
+    endloop
+    
+    loop foreach ct wall.contactmap(wpDown)
+        
+        zongKNY+=contact.prop(ct,"kn")
+        
+    endloop
+    
+    gx=fac*wly/(zongKNX*global.timestep)
+    
+    gy=fac*wlx/(zongKNY*global.timestep)
+    
+    
+end
+
+fish define sevro_walls
+    
+    compute_stress
+    
+    if timestepNow<global.step then
+        
+        get_g(sevro_factor)
+        
+        timestepNow+=sevro_freq
+        
+    endif
+    
+    if do_xSevro=true then
+        
+        Xvel=gx*(wxss-txx)
+        
+        wall.vel.x(wpRight)=-Xvel
+        
+        wall.vel.x(wpLeft)=Xvel
+        
+    endif
+    
+    
+    
+    if do_ySevro=true then
+        
+        Yvel=gy*(wyss-tyy)
+        
+        wall.vel.y(wpUp)=-Yvel
+        
+        wall.vel.y(wpDown)=Yvel
+        
+    endif
+    
+end
+
+fish define wp_ini
+    
+    wpDown=wall.find(1)
+    
+    wpRight=wall.find(2)
+    
+    wpUp=wall.find(3)
+    
+    wpLeft=wall.find(4)
+    
+end
+
+fish define identify_floaters
+
+    loop foreach local ball ball.list
+    
+        ball.group.remove(ball, 'floaters')
+        
+        local contactmap=ball.contactmap(ball)
+        
+        local size=map.size(contactmap)
+        
+        if size <= 1 then
+        
+            ball.group(ball)='floaters'
+            
+        endif
+        
+    endloop
+    
+end
+
+@wp_ini
+
+fish callback add @sevro_walls -1.0
+
+fish history name '1' @wxss
+
+fish history name '2' @wyss
+
+fish history name '3' @gx
+
+fish history name '4' @gy
+
+model cycle 1
+
+model solve
+
+model save 'yuya'
