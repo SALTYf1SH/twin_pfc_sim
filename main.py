@@ -4,6 +4,8 @@ import numpy as np
 import os
 import matplotlib.pyplot as plt
 import csv
+from scipy.interpolate import griddata
+from scipy.ndimage import convolve
 
 # set contact properties
 fric = 0.05    # friction coefficient
@@ -15,13 +17,13 @@ F0 = 1e2    # maximum attractive force (N)
 # Define step interval
 step_interval = 30000
 
-sec_interval = 3
-opencut_sec = 5
+sec_interval = 3   # set the length of each section
+opencut_sec = 5   # set the section where excavation starts
 
 layer_array = [
     5,  # coal layer height
 ]
-subsurface_level = 5
+subsurface_level = 2   # set the height of the subsurface
 
 image_save_path = 'images'
 if not os.path.exists(image_save_path):
@@ -44,6 +46,12 @@ def run_dat_file(file_path):
     except Exception as e:
         print(f"Error executing {file_path}: {str(e)}")
         return False
+    
+def delete_balls_outside_area(x_min, x_max, y_min, y_max):
+    for ball_obj in ball.list():
+        pos = ball_obj.pos()
+        if not (x_min <= pos[0] <= x_max and y_min <= pos[1] <= y_max):
+            ball_obj.delete()
 
 def compute_dimensions():
     wp_right = wall.find('boxWallRight2')
@@ -103,7 +111,75 @@ def get_avg_ball_y_disp(ball_objects):
     y_disps = [ball_obj.disp_y() for ball_obj in ball_objects]
     return np.mean(y_disps)
 
-def get_balls_y_displacement_matrix(window_size, model_width, model_height, overlap=0.5):
+def interpolate_nan_values(matrix, method='cubic'):
+    """
+    Interpolate NaN values in a matrix using the average of neighboring cells.
+    """
+    nan_mask = np.isnan(matrix)
+    if not np.any(nan_mask):  # If no NaN values, return original matrix
+        return matrix
+    
+    # Define a 3x3 kernel with all ones
+    kernel = np.ones((3, 3), dtype=int)
+    
+    # Step 2: Convolve the mask to count NaNs in the neighborhood
+    # Use 'constant' mode with cval=0 to treat out-of-bound as non-NaN
+    nan_count = convolve(nan_mask.astype(int), kernel, mode='constant', cval=0)
+    
+    # Internal cells where all 9 cells (center + 8 neighbors) are NaN
+    internal_condition = (nan_mask) & (nan_count == 9)
+    
+    # Step 3: Handle border cells
+    # Define the shape
+    rows, cols = matrix.shape
+    
+    # Initialize border condition mask
+    border_condition = np.zeros_like(nan_mask)
+    
+    # Check top and bottom borders
+    for i in [0, rows-1]:
+        for j in range(cols):
+            if nan_mask[i, j]:
+                # Extract the neighborhood, handling boundaries
+                neighbors = nan_mask[max(i-1, 0):min(i+2, rows), max(j-1, 0):min(j+2, cols)]
+                if np.all(neighbors):
+                    # Check from current position to the edge are NaN
+                    if (i == 0 and np.all(nan_mask[0:i+1, j])) or (i == rows-1 and np.all(nan_mask[i:rows, j])):
+                        border_condition[i, j] = True
+    
+    # Check left and right borders (excluding corners already checked)
+    for j in [0, cols-1]:
+        for i in range(1, rows-1):
+            if nan_mask[i, j]:
+                neighbors = nan_mask[max(i-1, 0):min(i+2, rows), max(j-1, 0):min(j+2, cols)]
+                if np.all(neighbors):
+                    if (j == 0 and np.all(nan_mask[i, 0:j+1])) or (j == cols-1 and np.all(nan_mask[i, j:cols])):
+                        border_condition[i, j] = True
+    
+    # Combine internal and border conditions
+    final_mask = internal_condition | border_condition
+
+    # Create coordinates for valid (non-nan) points
+    x, y = np.meshgrid(np.arange(matrix.shape[1]), np.arange(matrix.shape[0]))
+    x_valid = x[~nan_mask]
+    y_valid = y[~nan_mask]
+    points = np.column_stack((x_valid, y_valid))
+    
+    # Get valid values
+    values = matrix[~nan_mask]
+    
+    # Create coordinates for all points
+    xi, yi = np.meshgrid(np.arange(matrix.shape[1]), np.arange(matrix.shape[0]))
+    
+    # Interpolate
+    matrix = griddata(points, values, (xi, yi), method=method)
+
+    # Restore nan values that meet the conditions
+    matrix[final_mask] = np.nan
+
+    return matrix
+
+def get_balls_y_displacement_matrix(window_size, model_width, model_height, interpolate, overlap=0.5):
     """
     Create a heatmap of y-displacements using a sliding window.
     
@@ -164,11 +240,14 @@ def get_balls_y_displacement_matrix(window_size, model_width, model_height, over
                 displacement_matrix[i, j] = np.mean(all_disps[in_window])
             else:
                 displacement_matrix[i, j] = np.nan
+    if interpolate:
+        # Interpolate nan values according to the average value of 8 neighboring cells
+        displacement_matrix = interpolate_nan_values(displacement_matrix, method=interpolate)
     
     return displacement_matrix, x_centers, y_centers
 
 # Example usage and plotting:
-def plot_y_displacement_heatmap(window_size, model_width, model_height, name, save_path=".", overlap=0.5):
+def plot_y_displacement_heatmap(window_size, model_width, model_height, name, interpolate='nearest', save_path=".", overlap=0.5):
     """
     Create and plot the displacement heatmap.
     
@@ -179,20 +258,21 @@ def plot_y_displacement_heatmap(window_size, model_width, model_height, name, sa
     
     # Create heatmap data
     disp_matrix, x_centers, y_centers = get_balls_y_displacement_matrix(
-        window_size, model_width, model_height, overlap
+        window_size, model_width, model_height, interpolate, overlap
     )
     
     # Create heatmap plot
     plt.figure(figsize=(10, 8))
     plt.imshow(
         disp_matrix,
-        extent=[x_centers[0], x_centers[-1], y_centers[0], y_centers[-1]],
+        extent=[0, x_centers[-1]-x_centers[0], 0, y_centers[-1]-y_centers[0]],
         origin='lower',
         aspect='equal',
         cmap='coolwarm_r'
     )
     
-    plt.colorbar(label='Y Displacement')
+    im_ratio = disp_matrix.shape[0]/disp_matrix.shape[1]
+    plt.colorbar(label='Y Displacement', fraction=0.046*im_ratio, pad=0.02)
     plt.clim(-6,0)
     plt.xlabel('X Position')
     plt.ylabel('Y Position')
@@ -270,6 +350,16 @@ if __name__ == "__main__":
     # yuya
     run_dat_file("yuya-new.dat")
 
+    wall_up_pos_y = wall.find('boxWallTop3').pos_y()
+
+    # delete balls outside the wall
+    delete_balls_outside_area(
+        x_min=wall.find('boxWallLeft4').pos_x(),
+        x_max=wall.find('boxWallRight2').pos_x(),
+        y_min=wall.find('boxWallBottom1').pos_y(),
+        y_max=wall.find('boxWallTop3').pos_y()
+    )
+
     # fenceng
     itasca.command("model restore 'yuya'")
     wlx, wly = compute_dimensions()
@@ -301,10 +391,17 @@ if __name__ == "__main__":
 
     # get a dict ball objects of each section near the ball at the top of the model
     top_ball_pos = get_balls_max_pos(1)
+    rdmax = itasca.fish.get('rdmax')
     
     ball_objects_dict = {}
     for i in range(1, sec_num + 1):
-        ball_objects_dict[str(i)] = get_balls_object_in_area(str(i), top_ball_pos-1, top_ball_pos)
+        ball_objects_dict[str(i)] = get_balls_object_in_area(str(i), top_ball_pos-rdmax, top_ball_pos)
+
+    # Print warning if top_ball_pos is larger than wall_up_pos_y
+    if top_ball_pos > wall_up_pos_y * 1.1:
+        print(f"Warning: the model is expanding, please check the model. Current top_ball_pos: {top_ball_pos}, model height: {wall_up_pos_y}")
+    if top_ball_pos < wall_up_pos_y * 0.8:
+        print(f"Warning: the model is shrinking, please check the model. Current top_ball_pos: {top_ball_pos}, model height: {wall_up_pos_y}")
 
     # delete empty list in ball_objects_dict
     ball_objects_dict = {k: v for k, v in ball_objects_dict.items() if v}
@@ -346,7 +443,7 @@ if __name__ == "__main__":
         plt.ylabel('Average Y Displacement')
         plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 
-        plot_y_displacement_heatmap(window_size=1.0, model_width=wlx, model_height=wly, name=section_name, save_path=image_save_path)
+        plot_y_displacement_heatmap(window_size=rdmax * 2, model_width=wlx, model_height=wly, name=section_name, interpolate='nearest', save_path=image_save_path)
 
     plt.savefig(f'{image_save_path}/{name}.png')
 

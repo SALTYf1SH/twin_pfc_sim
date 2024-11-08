@@ -40,7 +40,7 @@ ball attribute density [dens] damp 0.7
 
 model cycle 2000 calm 10
 
-model solve
+model solve ratio-average 1e-5 or cycle 50000
 
 model save 'sample'
 
@@ -201,6 +201,6 @@ fish history name '4' @gy
 
 model cycle 1
 
-model solve
+model solve ratio-average 1e-5 or cycle 50000
 
 model save 'yuya'

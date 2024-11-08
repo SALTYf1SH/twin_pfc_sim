@@ -155,7 +155,7 @@ model gravity 10
 
 model cycle 1
 
-model solve ratio-average 1e-3
+model solve ratio-average 1e-3 or cycle 50000
 
 ; echo-line 'off'
 
