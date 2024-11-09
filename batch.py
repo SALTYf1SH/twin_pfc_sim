@@ -9,21 +9,24 @@ import os
 import datetime
 from utils import *
 
+start_comb_idx = 0
+exp_num = 100
+
 deterministic_mode = False
 
-layer_array = [
-    5,  # coal layer height
-]
-subsurface_level = 10   # set the height of the subsurface
-first_section_length = 5   # set the length of the first section
-sec_interval = 3   # set the length of each section
+# layer_array = [
+#     5,  # coal layer height
+# ]
+# subsurface_level = 10   # set the height of the subsurface
+# first_section_length = 5   # set the length of the first section
+# sec_interval = 3   # set the length of each section
 
 # set contact properties' ranges
-fric = 0.05    # friction coefficient, range: 0.0-1.0
-rfric = 0.0   # rolling friction coefficient, range: 0.0-1.0
-dpnr = 0.2   # normal damping coefficient, range: 0.0-1.0
-dpsr = 0.2    # shear damping coefficient, range: 0.0-1.0
-F0 = 1e5    # maximum attractive force at subsurface (N), range: 0-inf
+# fric = 0.05    # friction coefficient, range: 0.0-1.0
+# rfric = 0.0   # rolling friction coefficient, range: 0.0-1.0
+# dpnr = 0.2   # normal damping coefficient, range: 0.0-1.0
+# dpsr = 0.2    # shear damping coefficient, range: 0.0-1.0
+# F0 = 1e5    # maximum attractive force at subsurface (N), range: 0-inf
 
 opencut_sec = 5   # set the section where excavation starts
 step_interval = 30000  # Define step interval
@@ -33,8 +36,9 @@ itasca.command("python-reset-state false")
 
 itasca.set_deterministic(deterministic_mode)
 
-def run_simulation(**params):
+def run_simulation(params):
 
+    fric, rfric, dpnr, dpsr, F0 = params
     # Create result path with contact properties and date
     resu_path = f'experiments/exp_{fric}_{rfric}_{dpnr}_{dpsr}_{F0}'
     
@@ -45,27 +49,14 @@ def run_simulation(**params):
         os.makedirs(os.path.join(resu_path, 'sav')) 
         os.makedirs(os.path.join(resu_path, 'mat'))
 
-    # yuya
-    run_dat_file("yuya-new.dat")
-    itasca.command("model save 'yuya'")
-
-    # delete balls outside the wall
-    delete_balls_outside_area(
-        x_min=wall.find('boxWallLeft4').pos_x(),
-        x_max=wall.find('boxWallRight2').pos_x(),
-        y_min=wall.find('boxWallBottom1').pos_y(),
-        y_max=wall.find('boxWallTop3').pos_y()
-    )
-
     # fenceng
-    itasca.command("model restore 'yuya'")
-    sec_num = fenceng(
-        sec_interval=sec_interval, 
-        layer_array=layer_array,
-        first_section_length=first_section_length,
-        subsurface_level=subsurface_level
-    )
-    itasca.command("model save 'fenceng'")
+    # itasca.command("model restore 'yuya'")
+    # sec_num = fenceng(
+    #     sec_interval=sec_interval, 
+    #     layer_array=layer_array,
+    #     first_section_length=first_section_length,
+    #     subsurface_level=subsurface_level
+    # )
 
     # pingheng
     itasca.command("model restore 'fenceng'")
@@ -81,12 +72,8 @@ def run_simulation(**params):
     itasca.fish.set('F0', F0)
 
     run_dat_file("pingheng-linear.dat")
-    itasca.command("model save 'pingheng'")
 
     # kaiwa
-    # Restore the model
-    itasca.command("model restore 'pingheng'")
-    
     # Reset ball attributes
     itasca.command("ball attribute velocity 0 spin 0 displacement 0")
 
@@ -131,24 +118,24 @@ def run_simulation(**params):
         # Save model and solve
         if i < opencut_sec+2:
             itasca.command(f"model solve cycle {step_interval} or ratio-average 1e-5")
-            itasca.command(f"model save '{section_name}'")
         elif i < sec_num-3:
             itasca.command(f"model solve cycle {step_interval} or ratio-average 1e-3")
-            itasca.command(f"model save '{section_name}'")
         else:
             itasca.command(f"model solve ratio-average 1e-3")
-            itasca.command(f"model save '{section_name}'")
 
         # get avg y disp of each section and plot the y disp vs section number
         y_disps = [get_avg_ball_y_disp(ball_objects_dict[str(i)]) for i in range(1, sec_num + 1)]
         y_disps_list[i] = y_disps
-        plt.plot(range(1, sec_num + 1), y_disps, label=f'{excavation_pos}')
-        plt.xlabel('Section Number')
-        plt.ylabel('Average Y Displacement')
-        plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 
         plot_y_displacement_heatmap(window_size=rdmax * 2, model_width=wlx, model_height=wly, name=excavation_pos, interpolate='nearest', resu_path=resu_path)
 
+    # plot every y disp vs section number
+    plt.figure(figsize=(10, 6))
+    for i in list(y_disps_list.keys()):
+        plt.plot(range(1, sec_num + 1), y_disps_list[i], label=f'{i*sec_interval}')
+    plt.xlabel('Section Number')
+    plt.ylabel('Average Y Displacement')
+    plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
     plt.savefig(os.path.join(resu_path, 'img', f'surface_y_disp_vs_section.png'), dpi=400, bbox_inches='tight')
 
     # save y_disps_list to csv
@@ -161,19 +148,59 @@ def run_simulation(**params):
             row = [section] + [y_disps_list[step][section-1] for step in y_disps_list]
             writer.writerow(row)
     
-    return True
+        return True
+        
+    except Exception as e:
+        print(f"Error in simulation {resu_path}: {str(e)}")
+        return False
+
+def main(start_comb_idx, exp_num):
+    # Define parameter ranges
+    param_ranges = {
+        'fric': np.linspace(0.0, 1.0, 4),   # 4 values from 0.0 to 1.0
+        'rfric': np.linspace(0.0, 1.0, 4),  # 4 values from 0.0 to 1.0
+        'dpnr': np.linspace(0.0, 1.0, 5),   # 5 values from 0.0 to 1.0
+        'dpsr': np.linspace(0.0, 1.0, 5),   # 5 values from 0.0 to 1.0
+        # 'F0': np.logspace(4, 6, 5)        # 5 values from 1e4 to 1e6
+        'F0': [1e4, 1e6]
+    }
     
+    # Generate all combinations
+    param_combinations = list(product(
+        param_ranges['fric'],
+        param_ranges['rfric'],
+        param_ranges['dpnr'],
+        param_ranges['dpsr'],
+        param_ranges['F0']
+    ))[start_comb_idx:start_comb_idx+exp_num]
+    
+    # Create log file
+    log_file = 'grid_search.log'
+    total_combinations = len(param_combinations)
+    
+    print(f"Starting grid search with {total_combinations} combinations")
+    
+    # Run all combinations
+    start_time = time.time()
+    for i, params in enumerate(param_combinations, 1):
+        print(f"\nRunning combination {i}/{total_combinations}")
+        print(f"Parameters: fric={params[0]}, rfric={params[1]}, dpnr={params[2]}, dpsr={params[3]}, F0={params[4]}")
+        
+        success = run_simulation(params)
+        
+        # Log progress
+        with open(log_file, 'a') as f:
+            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            f.write(f"[{timestamp}] [INFO] Combination {i}/{total_combinations}\n")
+            f.write(f"[{timestamp}] [PARAMS] fric={params[0]}, rfric={params[1]}, dpnr={params[2]}, dpsr={params[3]}, F0={params[4]}\n")
+            f.write(f"[{timestamp}] [STATUS] {'Success' if success else 'Failed'}\n")
+            f.write("-" * 50 + "\n")
+        
+        # Calculate and display estimated time remaining
+        elapsed_time = time.time() - start_time
+        avg_time_per_sim = elapsed_time / i
+        remaining_time = avg_time_per_sim * (total_combinations - i)
+        print(f"Estimated time remaining: {remaining_time/3600:.1f} hours")
+
 if __name__ == "__main__":
-    run_simulation(
-        fric=fric, 
-        rfric=rfric, 
-        dpnr=dpnr, 
-        dpsr=dpsr, 
-        F0=F0,
-        opencut_sec=opencut_sec,
-        step_interval=step_interval,
-        layer_array=layer_array,
-        first_section_length=first_section_length,
-        subsurface_level=subsurface_level,
-        sec_interval=sec_interval
-    )
+    main(start_comb_idx, exp_num)

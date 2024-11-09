@@ -7,3 +7,6 @@ images/
 *.temp
 *.backup
 *.log
+.*
+__pycache__/
+experiments/
