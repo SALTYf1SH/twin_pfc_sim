@@ -490,10 +490,10 @@ if __name__ == "__main__":
 
         plot_y_displacement_heatmap(window_size=rdmax * 2, model_width=wlx, model_height=wly, name=excavation_pos, interpolate='nearest', save_path=resu_path)
 
-    plt.savefig(os.path.join(resu_path, 'img', f'y_disp_vs_section.png'), dpi=400, bbox_inches='tight')
+    plt.savefig(os.path.join(resu_path, 'img', f'surface_y_disp_vs_section.png'), dpi=400, bbox_inches='tight')
 
     # save y_disps_list to csv
-    with open(os.path.join(resu_path, 'mat', f'y_disp_vs_section.csv'), 'w', newline='') as csvfile:
+    with open(os.path.join(resu_path, 'mat', f'surface_y_disp_vs_section.csv'), 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
         # Write header row with step numbers
         writer.writerow(['Section'] + list(np.fromiter(y_disps_list.keys(), dtype=float)*sec_interval))
