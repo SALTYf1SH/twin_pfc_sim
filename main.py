@@ -7,30 +7,28 @@ import csv
 from scipy.interpolate import griddata
 from scipy.ndimage import convolve
 
+deterministic_mode = False
+
+layer_array = [
+    5,  # coal layer height
+]
+subsurface_level = 10   # set the height of the subsurface
+sec_interval = 3   # set the length of each section
+
 # set contact properties
 fric = 0.05    # friction coefficient
 rfric = 0.0   # rolling friction coefficient
 dpnr = 0.2   # normal damping coefficient
 dpsr = 0.2    # shear damping coefficient
-F0 = 1e2    # maximum attractive force (N)
+F0 = 1e5    # maximum attractive force (N)
 
-# Define step interval
-step_interval = 30000
-
-sec_interval = 3   # set the length of each section
 opencut_sec = 5   # set the section where excavation starts
-
-layer_array = [
-    5,  # coal layer height
-]
-subsurface_level = 2   # set the height of the subsurface
-
-image_save_path = 'images'
-if not os.path.exists(image_save_path):
-    os.makedirs(image_save_path)
+step_interval = 30000  # Define step interval
 
 # Prevent Python state from resetting when issuing 'model new' or 'model restore'
 itasca.command("python-reset-state false")
+
+itasca.set_deterministic(deterministic_mode)
 
 def run_dat_file(file_path):
     try:
@@ -347,10 +345,12 @@ def fenceng(sec_interval, layer_array, subsurface_level=5):
     return sec_num
 
 if __name__ == "__main__":
+    resu_path = 'images'
+    if not os.path.exists(resu_path):
+        os.makedirs(resu_path)
+
     # yuya
     run_dat_file("yuya-new.dat")
-
-    wall_up_pos_y = wall.find('boxWallTop3').pos_y()
 
     # delete balls outside the wall
     delete_balls_outside_area(
@@ -362,7 +362,6 @@ if __name__ == "__main__":
 
     # fenceng
     itasca.command("model restore 'yuya'")
-    wlx, wly = compute_dimensions()
     sec_num = fenceng(
         sec_interval=sec_interval, 
         layer_array=layer_array,
@@ -373,6 +372,9 @@ if __name__ == "__main__":
     # pingheng
     itasca.command("model restore 'fenceng'")
 
+    wall_up_pos_y = wall.find('boxWallTop3').pos_y()
+    wlx, wly = compute_dimensions()
+
     # send contact properties to FISH
     itasca.fish.set('fric', fric)
     itasca.fish.set('rfric', rfric)
@@ -381,6 +383,7 @@ if __name__ == "__main__":
     itasca.fish.set('F0', F0)
 
     run_dat_file("pingheng-linear.dat")
+    itasca.command("model save 'pingheng'")
 
     # kaiwa
     # Restore the model
@@ -426,14 +429,14 @@ if __name__ == "__main__":
         
         # Save model and solve
         if i < opencut_sec+2:
-            itasca.command(f"model save '{name}'")
             itasca.command(f"model solve cycle {step_interval} or ratio-average 1e-5")
+            itasca.command(f"model save '{name}'")
         elif i < sec_num-3:
-            itasca.command(f"model save '{name}'")
             itasca.command(f"model solve cycle {step_interval} or ratio-average 1e-3")
-        else:
             itasca.command(f"model save '{name}'")
+        else:
             itasca.command(f"model solve ratio-average 1e-3")
+            itasca.command(f"model save '{name}'")
 
         # get avg y disp of each section and plot the y disp vs section number
         y_disps = [get_avg_ball_y_disp(ball_objects_dict[str(i)]) for i in range(1, sec_num + 1)]
@@ -458,4 +461,4 @@ if __name__ == "__main__":
             writer.writerow(row)
     
     # Save final model
-    itasca.command("model save 'final'")
+    # itasca.command("model save 'final'")

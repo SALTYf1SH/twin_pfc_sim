@@ -1,7 +1,5 @@
 model new
 
-model deterministic off
-
 [ravg       =   2e-1   ]  ; ball average radius  [m]
 [rdev       =   0.5    ]  ; ball relative radius deviation [-]
 [dens       =   1.0e3  ]  ; ball density  [kg/m3]
@@ -12,11 +10,11 @@ fish define par
     ;width=400
     width=80
     
-    height=20
+    height=50
     
-    rdmax=0.4
+    rdmax=0.3
     
-    rdmin=0.5
+    rdmin=0.25
     
     poro=0.08
     
@@ -35,16 +33,16 @@ wall generate box [-width*0.5] [width*0.5] [-height*0.5] [height*0.5] expand 1.2
 ball distribute porosity @poro radius @rdmin @rdmax box [-width*0.5] [width*0.5] [-height*0.5] [height*0.5]
 
 contact cmat default model linear method deformability emod 100e6 kratio 1.5
-
+; Set ball density according to ball numbers?
 ball attribute density [dens] damp 0.7
 
 model cycle 2000 calm 10
 
 model solve ratio-average 1e-5 or cycle 50000
 
-model save 'sample'
+; model save 'sample'
 
-model restore 'sample'
+; model restore 'sample'
 
 [txx=-1e6]
 
