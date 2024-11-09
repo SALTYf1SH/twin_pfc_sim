@@ -4,6 +4,7 @@ import numpy as np
 import os
 import matplotlib.pyplot as plt
 import csv
+import datetime
 from scipy.interpolate import griddata
 from scipy.ndimage import convolve
 
@@ -13,14 +14,15 @@ layer_array = [
     5,  # coal layer height
 ]
 subsurface_level = 10   # set the height of the subsurface
+first_section_length = 5   # set the length of the first section
 sec_interval = 3   # set the length of each section
 
-# set contact properties
-fric = 0.05    # friction coefficient
-rfric = 0.0   # rolling friction coefficient
-dpnr = 0.2   # normal damping coefficient
-dpsr = 0.2    # shear damping coefficient
-F0 = 1e5    # maximum attractive force (N)
+# set contact properties' ranges
+fric = 0.05    # friction coefficient, range: 0.0-1.0
+rfric = 0.0   # rolling friction coefficient, range: 0.0-1.0
+dpnr = 0.2   # normal damping coefficient, range: 0.0-1.0
+dpsr = 0.2    # shear damping coefficient, range: 0.0-1.0
+F0 = 1e5    # maximum attractive force at subsurface (N), range: 0-inf
 
 opencut_sec = 5   # set the section where excavation starts
 step_interval = 30000  # Define step interval
@@ -245,7 +247,7 @@ def get_balls_y_displacement_matrix(window_size, model_width, model_height, inte
     return displacement_matrix, x_centers, y_centers
 
 # Example usage and plotting:
-def plot_y_displacement_heatmap(window_size, model_width, model_height, name, interpolate='nearest', save_path=".", overlap=0.5):
+def plot_y_displacement_heatmap(window_size, model_width, model_height, name, interpolate='nearest', resu_path=".", overlap=0.5):
     """
     Create and plot the displacement heatmap.
     
@@ -275,10 +277,26 @@ def plot_y_displacement_heatmap(window_size, model_width, model_height, name, in
     plt.xlabel('X Position')
     plt.ylabel('Y Position')
     plt.title(f'Y Displacement Heatmap: {name}')
-    plt.savefig(f'{save_path}/displacement_heatmap_{name}.png')
-    plt.close()
+    plt.savefig(os.path.join(resu_path, 'img', f'displacement_heatmap_{name}.png'), dpi=400, bbox_inches='tight')
 
-def fenceng(sec_interval, layer_array, subsurface_level=5):
+    # Also save the displacement matrix to a npz file
+    # Save under the "mat" folder under the result path
+    # Include the excavation position in the file name
+    np.savez(os.path.join(resu_path, 'mat', f'y_displacement_matrix_{name}.npz'), disp_matrix=disp_matrix, x_centers=x_centers, y_centers=y_centers)
+
+def fenceng(sec_interval, layer_array, first_section_length=5, subsurface_level=5):
+    """
+    Create layer and section groups for fenceng model.
+
+    Args:
+        sec_interval (float): Section interval
+        layer_array (list): Layer array
+        first_section_length (float): Length of the first section
+        subsurface_level (float): Subsurface level
+
+    Returns:
+        int: Number of sections
+    """
         
     # Get starting x,y position
     wlx, wly = compute_dimensions()
@@ -286,12 +304,17 @@ def fenceng(sec_interval, layer_array, subsurface_level=5):
     xpos0 = wall.find('boxWallLeft4').pos_x()
     
     # Calculate number of sections based on wall width and interval
-    assert wlx > sec_interval, f"Section interval must be less than wall width, Current sec_interval: {sec_interval}, wall width: {wlx}"
-    sec_num = int(wlx // sec_interval)
+    assert sec_interval > 0 and first_section_length >= 0, f"Section interval and first section length must be greater than 0, Current sec_interval: {sec_interval}, first_section_length: {first_section_length}"
+    if first_section_length > 0:
+        assert wlx > first_section_length + sec_interval, f"Section length must be less than model width, Current section length: {first_section_length + sec_interval}, model width: {wlx}"
+        sec_num = int((wlx - first_section_length) // sec_interval) + 1
+    else:
+        assert wlx > sec_interval, f"Section length must be less than model width, Current section length: {sec_interval}, model width: {wlx}"
+        sec_num = int(wlx // sec_interval)
 
     height_array = [0]
     height_array.extend(layer_array)
-    assert height_array[-1] < wly - subsurface_level, f"Height array must be less than wall height, Current height array: {height_array}, wall height: {wly}"
+    assert height_array[-1] < wly - subsurface_level, f"Height array must be less than model height, Current height array: {height_array}, model height: {wly}"
     height_array.append(wly - subsurface_level)
     height_array.append(wly)
 
@@ -312,8 +335,16 @@ def fenceng(sec_interval, layer_array, subsurface_level=5):
     
     # Create section groups
     for j in range(1, sec_num + 1):
-        xpos_right = xpos0 + j * sec_interval
-        xpos_left = xpos0 + (j-1) * sec_interval
+        if first_section_length > 0:
+            if j == 1:
+                xpos_right = xpos0 + first_section_length
+                xpos_left = xpos0
+            else:
+                xpos_right = xpos0 + first_section_length + (j-1) * sec_interval
+                xpos_left = xpos0 + first_section_length + (j-2) * sec_interval
+        else:
+            xpos_right = xpos0 + j * sec_interval
+            xpos_left = xpos0 + (j-1) * sec_interval
         
         # Assign balls to section groups
         set_balls_group_in_area(
@@ -345,12 +376,19 @@ def fenceng(sec_interval, layer_array, subsurface_level=5):
     return sec_num
 
 if __name__ == "__main__":
-    resu_path = 'images'
+    # Create result path with contact properties and date
+    resu_path = f'{fric}_{rfric}_{dpnr}_{dpsr}_{F0}_{datetime.datetime.now().strftime("%m%d%H%M")}'
+    
+    # Create main result directory and subdirectories
     if not os.path.exists(resu_path):
         os.makedirs(resu_path)
+        os.makedirs(os.path.join(resu_path, 'img'))
+        os.makedirs(os.path.join(resu_path, 'sav')) 
+        os.makedirs(os.path.join(resu_path, 'mat'))
 
     # yuya
     run_dat_file("yuya-new.dat")
+    itasca.command("model save 'yuya'")
 
     # delete balls outside the wall
     delete_balls_outside_area(
@@ -365,6 +403,7 @@ if __name__ == "__main__":
     sec_num = fenceng(
         sec_interval=sec_interval, 
         layer_array=layer_array,
+        first_section_length=first_section_length,
         subsurface_level=subsurface_level
     )
     itasca.command("model save 'fenceng'")
@@ -416,7 +455,10 @@ if __name__ == "__main__":
     # Loop through sections
     for i in range(opencut_sec, sec_num-2):
         section_name = str(i)
-        name = 'result' + str(i)
+        if first_section_length > 0:
+            excavation_pos = first_section_length + (i-1) * sec_interval
+        else:
+            excavation_pos = i * sec_interval
         
         # Loop through all balls
         for ball_obj in list(ball.list()):  # Convert to list to avoid iterator issues
@@ -430,28 +472,28 @@ if __name__ == "__main__":
         # Save model and solve
         if i < opencut_sec+2:
             itasca.command(f"model solve cycle {step_interval} or ratio-average 1e-5")
-            itasca.command(f"model save '{name}'")
+            itasca.command(f"model save '{section_name}'")
         elif i < sec_num-3:
             itasca.command(f"model solve cycle {step_interval} or ratio-average 1e-3")
-            itasca.command(f"model save '{name}'")
+            itasca.command(f"model save '{section_name}'")
         else:
             itasca.command(f"model solve ratio-average 1e-3")
-            itasca.command(f"model save '{name}'")
+            itasca.command(f"model save '{section_name}'")
 
         # get avg y disp of each section and plot the y disp vs section number
         y_disps = [get_avg_ball_y_disp(ball_objects_dict[str(i)]) for i in range(1, sec_num + 1)]
         y_disps_list[i] = y_disps
-        plt.plot(range(1, sec_num + 1), y_disps, label=f'{name}')
+        plt.plot(range(1, sec_num + 1), y_disps, label=f'{excavation_pos}')
         plt.xlabel('Section Number')
         plt.ylabel('Average Y Displacement')
         plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 
-        plot_y_displacement_heatmap(window_size=rdmax * 2, model_width=wlx, model_height=wly, name=section_name, interpolate='nearest', save_path=image_save_path)
+        plot_y_displacement_heatmap(window_size=rdmax * 2, model_width=wlx, model_height=wly, name=excavation_pos, interpolate='nearest', save_path=resu_path)
 
-    plt.savefig(f'{image_save_path}/{name}.png')
+    plt.savefig(os.path.join(resu_path, 'img', f'y_disp_vs_section.png'), dpi=400, bbox_inches='tight')
 
     # save y_disps_list to csv
-    with open(f'{name}.csv', 'w', newline='') as csvfile:
+    with open(os.path.join(resu_path, 'mat', f'y_disp_vs_section.csv'), 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
         # Write header row with step numbers
         writer.writerow(['Section'] + list(np.fromiter(y_disps_list.keys(), dtype=float)*sec_interval))
