@@ -141,21 +141,24 @@ def run_simulation(**params):
 
         # get avg y disp of each section and plot the y disp vs section number
         y_disps = [get_avg_ball_y_disp(ball_objects_dict[str(i)]) for i in range(1, sec_num + 1)]
-        y_disps_list[i] = y_disps
-        plt.plot(range(1, sec_num + 1), y_disps, label=f'{excavation_pos}')
-        plt.xlabel('Section Number')
-        plt.ylabel('Average Y Displacement')
-        plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        y_disps_list[excavation_pos] = y_disps
 
         plot_y_displacement_heatmap(window_size=rdmax * 2, model_width=wlx, model_height=wly, name=excavation_pos, interpolate='nearest', resu_path=resu_path)
 
+    # plot every y disp vs section number
+    plt.figure(figsize=(10, 6))
+    for excavation_pos, y_disps in y_disps_list.items():
+        plt.plot(range(1, sec_num + 1), y_disps, label=f'{excavation_pos}')
+    plt.xlabel('Section Number')
+    plt.ylabel('Average Y Displacement')
+    plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
     plt.savefig(os.path.join(resu_path, 'img', f'surface_y_disp_vs_section.png'), dpi=400, bbox_inches='tight')
 
     # save y_disps_list to csv
     with open(os.path.join(resu_path, 'mat', f'surface_y_disp_vs_section.csv'), 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
         # Write header row with step numbers
-        writer.writerow(['Section'] + list(np.fromiter(y_disps_list.keys(), dtype=float)*sec_interval))
+        writer.writerow(['Section'] + list(np.fromiter(y_disps_list.keys(), dtype=float)))
         # Write data rows
         for section in range(1, sec_num + 1):
             row = [section] + [y_disps_list[step][section-1] for step in y_disps_list]

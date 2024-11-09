@@ -260,6 +260,7 @@ def plot_y_displacement_heatmap(window_size, model_width, model_height, name, in
     plt.ylabel('Y Position')
     plt.title(f'Y Displacement Heatmap: {name}')
     plt.savefig(os.path.join(resu_path, 'img', f'displacement_heatmap_{name}.png'), dpi=400, bbox_inches='tight')
+    plt.close()
 
     # Also save the displacement matrix to a npz file
     # Save under the "mat" folder under the result path
