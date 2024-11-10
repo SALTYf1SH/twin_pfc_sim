@@ -1,13 +1,13 @@
 ; Contact model properties
 [emod   = 1.0e7]  ; Young's modulus (deformability method) [Pa]
 [kratio = 2.0  ]  ; stiffness ratio (deformability method) [-]
+[dpm    = 3    ]  ; dashpot mode                           [-]
 ;[fric   = 0.01 ]  ; friction coefficient                   [-]
 ;[dpnr   = 0.2  ]  ; normal critical damping ratio          [-]
 ;[dpsr   = 0.2  ]  ; shear critical damping ratio           [-]
-[dpm    = 3    ]  ; dashpot mode                           [-]
-[rfric  = 0.0  ]  ; rolling resistance coefficient         [-]
+;[rfric  = 0.0  ]  ; rolling resistance coefficient         [-]
 ;[F0     = 1e2  ]  ; maximum attractive force               [N]
-[D0     = 0.0  ]  ; attraction range                       [m]
+;[D0     = 0.0  ]  ; attraction range                       [m]
 
 fish define contact_group
 
@@ -41,7 +41,7 @@ contact cmat default type ball-ball model arrlinear ...
  dp_mode @dpm ... 
  rr_fric @rfric ... 
  adh_F0 0 ... 
- adh_D0 @D0
+ adh_D0 0
 
 ; Ball-ball contact model for subsurface
 contact cmat add 1 model arrlinear ... 

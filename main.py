@@ -21,6 +21,7 @@ rfric = 0.0   # rolling friction coefficient, range: 0.0-1.0
 dpnr = 0.2   # normal damping coefficient, range: 0.0-1.0
 dpsr = 0.2    # shear damping coefficient, range: 0.0-1.0
 F0 = 1e5    # maximum attractive force at subsurface (N), range: 0-inf
+D0 = 1e-3   # attraction range at subsurface (m), range: 0-inf
 
 opencut_sec = 5   # set the section where excavation starts
 step_solve_time = 1  # Define step solve time
@@ -78,6 +79,7 @@ def run_simulation(**params):
     itasca.fish.set('dpnr', dpnr)
     itasca.fish.set('dpsr', dpsr)
     itasca.fish.set('F0', F0)
+    itasca.fish.set('D0', D0)
 
     # run_dat_file("pingheng-linear.dat")
     # itasca.command(f"model save '{os.path.join(resu_path, 'sav', 'pingheng')}'")
