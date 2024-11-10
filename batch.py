@@ -1,6 +1,6 @@
 import csv
 import itasca
-from itasca import ball, wall, ballarray
+from itasca import ball, wall
 from itertools import product
 import time
 import matplotlib.pyplot as plt
@@ -29,15 +29,15 @@ sec_interval = 3   # set the length of each section
 # F0 = 1e5    # maximum attractive force at subsurface (N), range: 0-inf
 
 opencut_sec = 5   # set the section where excavation starts
-step_interval = 30000  # Define step interval
+step_solve_time = 1  # Define step solve time
 
 # Prevent Python state from resetting when issuing 'model new' or 'model restore'
 itasca.command("python-reset-state false")
 
-itasca.set_deterministic(deterministic_mode)
-
 def run_simulation(params):
     try:
+        itasca.command(f"model new")
+        itasca.set_deterministic(deterministic_mode)
         fric, rfric, dpnr, dpsr, F0 = params
         # Create result path with contact properties and date
         resu_path = f'experiments/exp_{fric}_{rfric}_{dpnr}_{dpsr}_{F0}'
@@ -116,6 +116,9 @@ def run_simulation(params):
                             print(f"Error deleting ball {ball_obj.id()}: {str(e)}")
             
             # Save model and solve
+            itasca.command(f"model solve cycle 10")
+            global_timestep = itasca.timestep()
+            step_interval = int(step_solve_time / global_timestep)
             if i < opencut_sec+2:
                 itasca.command(f"model solve cycle {step_interval} or ratio-average 1e-5")
             elif i < sec_num-3:
@@ -139,7 +142,7 @@ def run_simulation(params):
         plt.savefig(os.path.join(resu_path, 'img', 'surface_y_disp_vs_section.png'), dpi=400, bbox_inches='tight')
 
         # save y_disps_list to csv
-        with open(os.path.join(resu_path, 'mat', 'surface_y_disp_vs_section.csv'), 'w', newline='') as csvfile:
+        with open(os.path.join(resu_path, 'surface_y_disp_vs_section.csv'), 'w', newline='') as csvfile:
             writer = csv.writer(csvfile)
             # Write header row with step numbers
             writer.writerow(['Section'] + list(np.fromiter(y_disps_list.keys(), dtype=float)))

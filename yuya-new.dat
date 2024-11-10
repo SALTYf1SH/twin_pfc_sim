@@ -1,5 +1,3 @@
-model new
-
 [ravg       =   3e-1   ]  ; ball average radius  [m]
 [rdev       =   0.5    ]  ; ball relative radius deviation [-]
 [dens       =   1.0e3  ]  ; ball density  [kg/m3]
@@ -7,7 +5,7 @@ model new
 
 fish define par
     width=80
-    height=50
+    height=20
     rdmax=0.3
     rdmin=0.25
     poro=0.08
