@@ -14,7 +14,7 @@ deterministic_mode = False
 layer_array = [
     5,  # coal layer height
 ]
-subsurface_level = 10   # set the height of the subsurface
+subsurface_level = 2   # set the height of the subsurface
 first_section_length = 5   # set the length of the first section
 sec_interval = 3   # set the length of each section
 
