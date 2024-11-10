@@ -152,10 +152,10 @@ def run_simulation(**params):
     plt.xlabel('Section Number')
     plt.ylabel('Average Y Displacement')
     plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-    plt.savefig(os.path.join(resu_path, 'img', f'surface_y_disp_vs_section.png'), dpi=400, bbox_inches='tight')
+    plt.savefig(os.path.join(resu_path, 'img', 'surface_y_disp_vs_section.png'), dpi=400, bbox_inches='tight')
 
     # save y_disps_list to csv
-    with open(os.path.join(resu_path, 'mat', f'surface_y_disp_vs_section.csv'), 'w', newline='') as csvfile:
+    with open(os.path.join(resu_path, 'mat', 'surface_y_disp_vs_section.csv'), 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
         # Write header row with step numbers
         writer.writerow(['Section'] + list(np.fromiter(y_disps_list.keys(), dtype=float)))
