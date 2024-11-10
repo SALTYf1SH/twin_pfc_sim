@@ -46,16 +46,16 @@ def run_simulation(**params):
     itasca.set_deterministic(deterministic_mode)
 
     # yuya
-    # run_dat_file("yuya-new.dat")
-    # itasca.command("model save 'yuya'")
+    run_dat_file("yuya-new.dat")
+    itasca.command("model save 'yuya'")
 
     # delete balls outside the wall
-    # delete_balls_outside_area(
-    #     x_min=wall.find('boxWallLeft4').pos_x(),
-    #     x_max=wall.find('boxWallRight2').pos_x(),
-    #     y_min=wall.find('boxWallBottom1').pos_y(),
-    #     y_max=wall.find('boxWallTop3').pos_y()
-    # )
+    delete_balls_outside_area(
+        x_min=wall.find('boxWallLeft4').pos_x(),
+        x_max=wall.find('boxWallRight2').pos_x(),
+        y_min=wall.find('boxWallBottom1').pos_y(),
+        y_max=wall.find('boxWallTop3').pos_y()
+    )
 
     # fenceng
     itasca.command("model restore 'yuya'")
@@ -65,10 +65,10 @@ def run_simulation(**params):
         first_section_length=first_section_length,
         subsurface_level=subsurface_level
     )
-    # itasca.command("model save 'fenceng'")
+    itasca.command("model save 'fenceng'")
 
     # pingheng
-    # itasca.command("model restore 'fenceng'")
+    itasca.command("model restore 'fenceng'")
 
     wall_up_pos_y = wall.find('boxWallTop3').pos_y()
     wlx, wly = compute_dimensions()
@@ -82,7 +82,7 @@ def run_simulation(**params):
     itasca.fish.set('D0', D0)
 
     # run_dat_file("pingheng-linear.dat")
-    # itasca.command(f"model save '{os.path.join(resu_path, 'sav', 'pingheng')}'")
+    itasca.command(f"model save '{os.path.join(resu_path, 'sav', 'pingheng')}'")
 
     # kaiwa
     # Restore the model
