@@ -81,7 +81,7 @@ def run_simulation(**params):
     itasca.fish.set('F0', F0)
     itasca.fish.set('D0', D0)
 
-    # run_dat_file("pingheng-linear.dat")
+    run_dat_file("pingheng-linear.dat")
     itasca.command(f"model save '{os.path.join(resu_path, 'sav', 'pingheng')}'")
 
     # kaiwa
