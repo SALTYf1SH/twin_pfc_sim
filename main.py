@@ -152,9 +152,10 @@ def run_simulation(**params):
     # plot every y disp vs section number
     plt.figure(figsize=(10, 6))
     for excavation_pos, y_disps in y_disps_list.items():
-        plt.plot(range(1, sec_num + 1), y_disps, label=f'{excavation_pos}')
-    plt.xlabel('Section Number')
-    plt.ylabel('Average Y Displacement')
+        x_positions = [first_section_length + (i-1) * sec_interval if first_section_length > 0 else i * sec_interval for i in range(1, sec_num + 1)]
+        plt.plot(x_positions, y_disps, label=f'{excavation_pos}')
+    plt.xlabel('Working Face Position (m)')
+    plt.ylabel('Vertical Displacement (m)')
     plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
     plt.savefig(os.path.join(resu_path, 'img', 'surface_y_disp_vs_section.png'), dpi=400, bbox_inches='tight')
 
