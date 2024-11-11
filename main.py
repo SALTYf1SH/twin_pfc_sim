@@ -13,7 +13,7 @@ layer_array = [
 ]
 subsurface_level = 2   # set the height of the subsurface
 first_section_length = 5   # set the length of the first section
-sec_interval = 10   # set the length of each section
+sec_interval = 3   # set the length of each section
 
 # set contact properties' ranges
 fric = 0.05    # friction coefficient, range: 0.0-1.0
@@ -24,7 +24,7 @@ F0 = 1e5    # maximum attractive force at subsurface (N), range: 0-inf
 D0 = 1e-3   # attraction range at subsurface (m), range: 0-inf
 
 opencut_sec = 5   # set the section where excavation starts
-step_solve_time = 0.1  # Define step solve time
+step_solve_time = 1  # Define step solve time
 
 def run_simulation(**params):
 
