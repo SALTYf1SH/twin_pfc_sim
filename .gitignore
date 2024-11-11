@@ -1,5 +1,4 @@
 images/
-*.sav
 *.png
 *.csv
 *.pdf
@@ -8,5 +7,7 @@ images/
 *.backup
 *.log
 .*
+*.txt
+*.dmp
 __pycache__/
 experiments/

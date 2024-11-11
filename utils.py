@@ -320,14 +320,16 @@ def fenceng(sec_interval, layer_array, first_section_length=5, subsurface_level=
     for j in range(1, sec_num + 1):
         if first_section_length > 0:
             if j == 1:
-                xpos_right = xpos0 + first_section_length
                 xpos_left = xpos0
+                xpos_right = xpos0 + first_section_length
             else:
-                xpos_right = xpos0 + first_section_length + (j-1) * sec_interval
-                xpos_left = xpos0 + first_section_length + (j-2) * sec_interval
+                xpos_left = xpos_right
+                xpos_right = xpos_left + sec_interval
         else:
-            xpos_right = xpos0 + j * sec_interval
             xpos_left = xpos0 + (j-1) * sec_interval
+            xpos_right = xpos_left + sec_interval
+
+        print(f"Section {j}: xpos_left: {xpos_left}, xpos_right: {xpos_right}")
         
         # Assign balls to section groups
         set_balls_group_in_area(
@@ -341,8 +343,10 @@ def fenceng(sec_interval, layer_array, first_section_length=5, subsurface_level=
     
     # Handle remaining section if needed
     if xpos_right < (wlx / 2 - itasca.fish.get('rdmax')):
+        xpos_left = xpos_right
         xpos_right = xpos0 + wlx
-        xpos_left = xpos0 + sec_num * sec_interval
+
+        print(f"Section {sec_num + 1}: xpos_left: {xpos_left}, xpos_right: {xpos_right}")
         
         # Assign balls to extra section group
         set_balls_group_in_area(

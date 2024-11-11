@@ -13,7 +13,7 @@ layer_array = [
 ]
 subsurface_level = 2   # set the height of the subsurface
 first_section_length = 5   # set the length of the first section
-sec_interval = 3   # set the length of each section
+sec_interval = 10   # set the length of each section
 
 # set contact properties' ranges
 fric = 0.05    # friction coefficient, range: 0.0-1.0
@@ -24,12 +24,12 @@ F0 = 1e5    # maximum attractive force at subsurface (N), range: 0-inf
 D0 = 1e-3   # attraction range at subsurface (m), range: 0-inf
 
 opencut_sec = 5   # set the section where excavation starts
-step_solve_time = 1  # Define step solve time
+step_solve_time = 0.1  # Define step solve time
 
 def run_simulation(**params):
 
     # Create result path with contact properties and date
-    resu_path = f'experiments/exp_{fric}_{rfric}_{dpnr}_{dpsr}_{F0}'
+    resu_path = f'experiments/exp_{fric}_{rfric}_{dpnr}_{dpsr}_{F0}_{D0}'
     
     # Create main result directory and subdirectories
     if not os.path.exists(resu_path):
@@ -93,11 +93,6 @@ def run_simulation(**params):
 
     # get a dict ball objects of each section near the ball at the top of the model
     top_ball_pos = get_balls_max_pos(1)
-    rdmax = itasca.fish.get('rdmax')
-    
-    ball_objects_dict = {}
-    for i in range(1, sec_num + 1):
-        ball_objects_dict[str(i)] = get_balls_object_in_area(str(i), top_ball_pos-rdmax, top_ball_pos)
 
     # Print warning if top_ball_pos is larger than wall_up_pos_y
     if top_ball_pos > wall_up_pos_y * 1.1:
@@ -105,10 +100,18 @@ def run_simulation(**params):
     if top_ball_pos < wall_up_pos_y * 0.8:
         print(f"Warning: the model is shrinking, please check the model. Current top_ball_pos: {top_ball_pos}, model height: {wall_up_pos_y}")
 
-    # delete empty list in ball_objects_dict
-    ball_objects_dict = {k: v for k, v in ball_objects_dict.items() if v}
+    rdmax = itasca.fish.get('rdmax')
     
-    sec_num = len(ball_objects_dict)
+    ball_objects_dict = {}
+    for i in range(1, sec_num + 1):
+        ball_objects_dict[str(i)] = get_balls_object_in_area(str(i), top_ball_pos-rdmax*1.5, top_ball_pos)
+
+    # delete empty list in ball_objects_dict
+    empty_sections = [k for k, v in ball_objects_dict.items() if not v]
+    if empty_sections:
+        print(f"Warning: The following sections fetched 0 balls and will be deleted: {empty_sections}")
+        ball_objects_dict = {k: v for k, v in ball_objects_dict.items() if v}
+        sec_num = len(ball_objects_dict)
 
     y_disps_list = {}
     
@@ -135,13 +138,11 @@ def run_simulation(**params):
         step_interval = int(step_solve_time / global_timestep)
         if i < opencut_sec+2:
             itasca.command(f"model solve cycle {step_interval} or ratio-average 1e-5")
-            itasca.command(f"model save '{os.path.join(resu_path, 'sav', section_name)}'")
         elif i < sec_num-3:
             itasca.command(f"model solve cycle {step_interval} or ratio-average 1e-3")
-            itasca.command(f"model save '{os.path.join(resu_path, 'sav', section_name)}'")
         else:
             itasca.command(f"model solve ratio-average 1e-3")
-            itasca.command(f"model save '{os.path.join(resu_path, 'sav', section_name)}'")
+        itasca.command(f"model save '{os.path.join(resu_path, 'sav', section_name)}'")
 
         # get avg y disp of each section and plot the y disp vs section number
         y_disps = [get_avg_ball_y_disp(ball_objects_dict[str(i)]) for i in range(1, sec_num + 1)]

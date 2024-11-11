@@ -13,6 +13,7 @@ start_comb_idx = 0
 exp_num = 100
 
 deterministic_mode = False
+checkpoint = True
 
 # layer_array = [
 #     5,  # coal layer height
@@ -20,13 +21,6 @@ deterministic_mode = False
 # subsurface_level = 10   # set the height of the subsurface
 first_section_length = 5   # set the length of the first section
 sec_interval = 3   # set the length of each section
-
-# set contact properties' ranges
-# fric = 0.05    # friction coefficient, range: 0.0-1.0
-# rfric = 0.0   # rolling friction coefficient, range: 0.0-1.0
-# dpnr = 0.2   # normal damping coefficient, range: 0.0-1.0
-# dpsr = 0.2    # shear damping coefficient, range: 0.0-1.0
-# F0 = 1e5    # maximum attractive force at subsurface (N), range: 0-inf
 
 opencut_sec = 5   # set the section where excavation starts
 step_solve_time = 1  # Define step solve time
@@ -38,9 +32,9 @@ def run_simulation(params):
     try:
         itasca.command(f"model new")
         itasca.set_deterministic(deterministic_mode)
-        fric, rfric, dpnr, dpsr, F0 = params
+        fric, rfric, dpnr, dpsr, F0, D0 = params
         # Create result path with contact properties and date
-        resu_path = f'experiments/exp_{fric}_{rfric}_{dpnr}_{dpsr}_{F0}'
+        resu_path = f'experiments/exp_{fric}_{rfric}_{dpnr}_{dpsr}_{F0}_{D0}'
         
         # Create main result directory and subdirectories
         if not os.path.exists(resu_path):
@@ -70,6 +64,7 @@ def run_simulation(params):
         itasca.fish.set('dpnr', dpnr)
         itasca.fish.set('dpsr', dpsr)
         itasca.fish.set('F0', F0)
+        itasca.fish.set('D0', D0)
 
         run_dat_file("pingheng-linear.dat")
 
@@ -79,11 +74,6 @@ def run_simulation(params):
 
         # get a dict ball objects of each section near the ball at the top of the model
         top_ball_pos = get_balls_max_pos(1)
-        rdmax = itasca.fish.get('rdmax')
-        
-        ball_objects_dict = {}
-        for i in range(1, sec_num + 1):
-            ball_objects_dict[str(i)] = get_balls_object_in_area(str(i), top_ball_pos-rdmax, top_ball_pos)
 
         # Print warning if top_ball_pos is larger than wall_up_pos_y
         if top_ball_pos > wall_up_pos_y * 1.1:
@@ -91,10 +81,18 @@ def run_simulation(params):
         if top_ball_pos < wall_up_pos_y * 0.8:
             print(f"Warning: the model is shrinking, please check the model. Current top_ball_pos: {top_ball_pos}, model height: {wall_up_pos_y}")
 
-        # delete empty list in ball_objects_dict
-        ball_objects_dict = {k: v for k, v in ball_objects_dict.items() if v}
+        rdmax = itasca.fish.get('rdmax')
         
-        sec_num = len(ball_objects_dict)
+        ball_objects_dict = {}
+        for i in range(1, sec_num + 1):
+            ball_objects_dict[str(i)] = get_balls_object_in_area(str(i), top_ball_pos-rdmax*1.5, top_ball_pos)
+
+        # delete empty list in ball_objects_dict
+        empty_sections = [k for k, v in ball_objects_dict.items() if not v]
+        if empty_sections:
+            print(f"Warning: The following sections fetched 0 balls and will be deleted: {empty_sections}")
+            ball_objects_dict = {k: v for k, v in ball_objects_dict.items() if v}
+            sec_num = len(ball_objects_dict)
 
         y_disps_list = {}
         
@@ -125,6 +123,8 @@ def run_simulation(params):
                 itasca.command(f"model solve cycle {step_interval} or ratio-average 1e-3")
             else:
                 itasca.command(f"model solve ratio-average 1e-3")
+            if checkpoint:
+                itasca.command(f"model save '{os.path.join(resu_path, 'sav', section_name)}'")
 
             # get avg y disp of each section and plot the y disp vs section number
             y_disps = [get_avg_ball_y_disp(ball_objects_dict[str(i)]) for i in range(1, sec_num + 1)]
@@ -160,50 +160,64 @@ def run_simulation(params):
 
 def main(start_comb_idx, exp_num):
     # Define parameter ranges
+    # param_ranges = {
+    #     'fric': np.linspace(0.0, 1.0, 4),   # 4 values from 0.0 to 1.0
+    #     'rfric': np.linspace(0.0, 1.0, 4),  # 4 values from 0.0 to 1.0
+    #     'dpnr': np.linspace(0.0, 1.0, 5),   # 5 values from 0.0 to 1.0
+    #     'dpsr': np.linspace(0.0, 1.0, 5),   # 5 values from 0.0 to 1.0
+    #     # 'F0': np.logspace(4, 6, 5)        # 5 values from 1e4 to 1e6
+    #     'F0': [1e4, 1e6],
+    #     'D0': [1e-6, 1]
+    # }
+
     param_ranges = {
-        'fric': np.linspace(0.0, 1.0, 4),   # 4 values from 0.0 to 1.0
-        'rfric': np.linspace(0.0, 1.0, 4),  # 4 values from 0.0 to 1.0
-        'dpnr': np.linspace(0.0, 1.0, 5),   # 5 values from 0.0 to 1.0
-        'dpsr': np.linspace(0.0, 1.0, 5),   # 5 values from 0.0 to 1.0
-        # 'F0': np.logspace(4, 6, 5)        # 5 values from 1e4 to 1e6
-        'F0': [1e4, 1e6]
+        'fric': [0.05,],   # 4 values from 0.0 to 1.0
+        'rfric': [0.05,],  # 4 values from 0.0 to 1.0
+        'dpnr': [0.2,],   # 5 values from 0.0 to 1.0
+        'dpsr': [0.2,],   # 5 values from 0.0 to 1.0
+        'F0': np.logspace(3, 5, 10),
+        'D0': np.logspace(-6, 0, 10)
     }
     
     # Generate all combinations
-    param_combinations = list(product(
+    all_combinations = list(product(
         param_ranges['fric'],
         param_ranges['rfric'],
         param_ranges['dpnr'],
         param_ranges['dpsr'],
-        param_ranges['F0']
-    ))[start_comb_idx:start_comb_idx+exp_num]
+        param_ranges['F0'],
+        param_ranges['D0']
+    ))
+    total_combinations = len(all_combinations)
+    end_idx = min(start_comb_idx + exp_num, len(all_combinations))
+    param_combinations = all_combinations[start_comb_idx:end_idx]
     
     # Create log file
     log_file = 'grid_search.log'
-    total_combinations = len(param_combinations)
+    run_combinations = len(param_combinations)
     
-    print(f"Starting grid search with {total_combinations} combinations")
+    print(f"Starting grid search at combination {start_comb_idx} with {run_combinations} combinations")
     
     # Run all combinations
     start_time = time.time()
     for i, params in enumerate(param_combinations, 1):
-        print(f"\nRunning combination {i}/{total_combinations}")
-        print(f"Parameters: fric={params[0]}, rfric={params[1]}, dpnr={params[2]}, dpsr={params[3]}, F0={params[4]}")
+        print(f"\nRunning combination {i + start_comb_idx}/{total_combinations}")
+        print(f"Parameters: fric={params[0]}, rfric={params[1]}, dpnr={params[2]}, dpsr={params[3]}, F0={params[4]}, D0={params[5]}")
         
         success = run_simulation(params)
-        
+
         # Log progress
         with open(log_file, 'a') as f:
             timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            f.write(f"[{timestamp}] [INFO] Combination {i}/{total_combinations}\n")
-            f.write(f"[{timestamp}] [PARAMS] fric={params[0]}, rfric={params[1]}, dpnr={params[2]}, dpsr={params[3]}, F0={params[4]}\n")
+            f.write(f"[{timestamp}] [INFO] Combination {i + start_comb_idx}/{total_combinations}\n")
+            f.write(f"[{timestamp}] [PARAMS] fric={params[0]}, rfric={params[1]}, dpnr={params[2]}, dpsr={params[3]}, F0={params[4]}, D0={params[5]}\n")
             f.write(f"[{timestamp}] [STATUS] {'Success' if success else 'Failed'}\n")
             f.write("-" * 50 + "\n")
         
         # Calculate and display estimated time remaining
         elapsed_time = time.time() - start_time
         avg_time_per_sim = elapsed_time / i
-        remaining_time = avg_time_per_sim * (total_combinations - i)
+        remaining_time = avg_time_per_sim * (run_combinations - i)
         print(f"Estimated time remaining: {remaining_time/3600:.1f} hours")
 
 if __name__ == "__main__":
