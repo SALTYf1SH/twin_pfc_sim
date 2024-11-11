@@ -5,7 +5,7 @@
 
 fish define par
     width=80
-    height=20
+    height=50
     rdmax=0.3
     rdmin=0.25
     poro=0.08
