@@ -58,6 +58,8 @@ def run_simulation(params):
         wall_up_pos_y = wall.find('boxWallTop3').pos_y()
         wlx, wly = compute_dimensions()
 
+        sec_num = calculate_section_number(wlx, sec_interval, first_section_length)
+
         # send contact properties to FISH
         itasca.fish.set('fric', fric)
         itasca.fish.set('rfric', rfric)
@@ -97,7 +99,7 @@ def run_simulation(params):
         y_disps_list = {}
         
         # Loop through sections
-        for i in range(opencut_sec, sec_num-2):
+        for i in range(opencut_sec, sec_num):
             section_name = str(i)
             if first_section_length > 0:
                 excavation_pos = first_section_length + (i-1) * sec_interval
@@ -194,6 +196,9 @@ def main(start_comb_idx, exp_num):
     
     # Create log file
     log_file = 'grid_search.log'
+    # delete log file if it exists
+    if os.path.exists(log_file):
+        os.remove(log_file)
     run_combinations = len(param_combinations)
     
     print(f"Starting grid search at combination {start_comb_idx} with {run_combinations} combinations")

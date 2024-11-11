@@ -267,6 +267,27 @@ def plot_y_displacement_heatmap(window_size, model_width, model_height, name, in
     # Include the excavation position in the file name
     np.savez(os.path.join(resu_path, 'mat', f'y_displacement_matrix_{name}.npz'), disp_matrix=disp_matrix, x_centers=x_centers, y_centers=y_centers)
 
+def calculate_section_number(wlx, sec_interval, first_section_length=0):
+    """
+    Calculate the number of sections based on model width and interval.
+
+    Args:
+        wlx (float): Total width of the model
+        sec_interval (float): Section interval
+        first_section_length (float): Length of the first section (default: 0)
+
+    Returns:
+        int: Number of sections
+    """
+    assert sec_interval > 0 and first_section_length >= 0, f"Section interval and first section length must be greater than 0, Current sec_interval: {sec_interval}, first_section_length: {first_section_length}"
+    
+    if first_section_length > 0:
+        assert wlx > first_section_length + sec_interval, f"Section length must be less than model width, Current section length: {first_section_length + sec_interval}, model width: {wlx}"
+        return int((wlx - first_section_length) // sec_interval) + 1
+    else:
+        assert wlx > sec_interval, f"Section length must be less than model width, Current section length: {sec_interval}, model width: {wlx}"
+        return int(wlx // sec_interval)
+
 def fenceng(sec_interval, layer_array, first_section_length=5, subsurface_level=5):
     """
     Create layer and section groups for fenceng model.
@@ -287,13 +308,7 @@ def fenceng(sec_interval, layer_array, first_section_length=5, subsurface_level=
     xpos0 = wall.find('boxWallLeft4').pos_x()
     
     # Calculate number of sections based on wall width and interval
-    assert sec_interval > 0 and first_section_length >= 0, f"Section interval and first section length must be greater than 0, Current sec_interval: {sec_interval}, first_section_length: {first_section_length}"
-    if first_section_length > 0:
-        assert wlx > first_section_length + sec_interval, f"Section length must be less than model width, Current section length: {first_section_length + sec_interval}, model width: {wlx}"
-        sec_num = int((wlx - first_section_length) // sec_interval) + 1
-    else:
-        assert wlx > sec_interval, f"Section length must be less than model width, Current section length: {sec_interval}, model width: {wlx}"
-        sec_num = int(wlx // sec_interval)
+    sec_num = calculate_section_number(wlx, sec_interval, first_section_length)
 
     height_array = [0]
     height_array.extend(layer_array)
