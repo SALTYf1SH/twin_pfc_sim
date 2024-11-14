@@ -141,7 +141,7 @@ def run_simulation(params):
         plt.xlabel('Working Face Position (m)')
         plt.xlim(0, wlx)
         plt.ylabel('Vertical Displacement (m)')
-        plt.legend(loc='center left', bbox_to_anchor=(1, 0.5), ncol=2, fontsize='small')
+        plt.legend(loc='center left', bbox_to_anchor=(1, 0.5), ncol=1, fontsize='small')
         plt.savefig(os.path.join(resu_path, 'img', 'surface_y_disp_vs_section.png'), dpi=400, bbox_inches='tight')
 
         # save y_disps_list to csv
@@ -154,7 +154,7 @@ def run_simulation(params):
                 if section == 0:
                     x_position = first_section_length / 2 if first_section_length > 0 else sec_interval / 2
                 else:
-                    x_position = first_section_length + section * sec_interval + sec_interval / 2 if first_section_length > 0 else section * sec_interval + sec_interval / 2
+                    x_position = first_section_length + (section - 1) * sec_interval + sec_interval / 2 if first_section_length > 0 else (section - 1) * sec_interval + sec_interval / 2
                 row = [x_position] + [y_disps_list[step][section] for step in y_disps_list]
                 writer.writerow(row)
 
