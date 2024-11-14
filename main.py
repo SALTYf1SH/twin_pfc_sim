@@ -20,7 +20,7 @@ layer_array = [
     34,
     36,
     39,
-    43.2,
+    44.8,
 ]
 subsurface_level = 2   # set the height of the subsurface
 first_section_length = 4  # set the length of the first section
