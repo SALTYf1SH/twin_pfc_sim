@@ -332,16 +332,16 @@ def fenceng(sec_interval, layer_array, first_section_length=5, subsurface_level=
         )
     
     # Create section groups
-    for j in range(1, sec_num + 1):
+    for j in range(0, sec_num):
         if first_section_length > 0:
-            if j == 1:
+            if j == 0:
                 xpos_left = xpos0
                 xpos_right = xpos0 + first_section_length
             else:
                 xpos_left = xpos_right
                 xpos_right = xpos_left + sec_interval
         else:
-            xpos_left = xpos0 + (j-1) * sec_interval
+            xpos_left = xpos0 + j * sec_interval
             xpos_right = xpos_left + sec_interval
 
         print(f"Section {j}: xpos_left: {xpos_left}, xpos_right: {xpos_right}")
@@ -361,7 +361,7 @@ def fenceng(sec_interval, layer_array, first_section_length=5, subsurface_level=
         xpos_left = xpos_right
         xpos_right = xpos0 + wlx
 
-        print(f"Section {sec_num + 1}: xpos_left: {xpos_left}, xpos_right: {xpos_right}")
+        print(f"Section {j + 1}: xpos_left: {xpos_left}, xpos_right: {xpos_right}")
         
         # Assign balls to extra section group
         set_balls_group_in_area(
@@ -369,10 +369,10 @@ def fenceng(sec_interval, layer_array, first_section_length=5, subsurface_level=
             x_max=xpos_right,
             y_min=wall.find('boxWallBottom1').pos_y(),
             y_max=wall.find('boxWallTop3').pos_y(),
-            group_name=str(sec_num + 1),
+            group_name=str(j + 1),
             slot_name='section'
         )
-        
+
         return sec_num + 1
     
     return sec_num

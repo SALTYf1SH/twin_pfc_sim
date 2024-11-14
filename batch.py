@@ -19,7 +19,7 @@ checkpoint = True
 #     5,  # coal layer height
 # ]
 # subsurface_level = 10   # set the height of the subsurface
-first_section_length = 5   # set the length of the first section
+first_section_length = 4   # set the length of the first section
 sec_interval = 3   # set the length of each section
 
 opencut_sec = 5   # set the section where excavation starts
@@ -86,7 +86,7 @@ def run_simulation(params):
         rdmax = itasca.fish.get('rdmax')
         
         ball_objects_dict = {}
-        for i in range(1, sec_num + 1):
+        for i in range(0, sec_num):
             ball_objects_dict[str(i)] = get_balls_object_in_area(str(i), top_ball_pos-rdmax*1.5, top_ball_pos)
 
         # delete empty list in ball_objects_dict
@@ -99,17 +99,16 @@ def run_simulation(params):
         y_disps_list = {}
         
         # Loop through sections
-        for i in range(opencut_sec, sec_num):
-            section_name = str(i)
+        for i in range(opencut_sec, sec_num-2):
             if first_section_length > 0:
-                excavation_pos = first_section_length + (i-1) * sec_interval
+                excavation_pos = first_section_length + i * sec_interval
             else:
-                excavation_pos = i * sec_interval
+                excavation_pos = (i + 1) * sec_interval
             
             # Loop through all balls
             for ball_obj in list(ball.list()):  # Convert to list to avoid iterator issues
                 if ball_obj.valid():  # Check if ball is still valid
-                    if ball_obj.in_group('1', 'layer') and ball_obj.in_group(f'{section_name}', 'section'):
+                    if ball_obj.in_group('1', 'layer') and ball_obj.in_group(f'{i}', 'section'):
                         try:
                             ball_obj.delete()
                         except Exception as e:
@@ -126,10 +125,10 @@ def run_simulation(params):
             else:
                 itasca.command(f"model solve ratio-average 1e-3")
             if checkpoint:
-                itasca.command(f"model save '{os.path.join(resu_path, 'sav', section_name)}'")
+                itasca.command(f"model save '{os.path.join(resu_path, 'sav', str(i))}'")
 
             # get avg y disp of each section and plot the y disp vs section number
-            y_disps = [get_avg_ball_y_disp(ball_objects_dict[str(i)]) for i in range(1, sec_num + 1)]
+            y_disps = [get_avg_ball_y_disp(ball_objects_dict[str(i)]) for i in range(0, sec_num)]
             y_disps_list[excavation_pos] = y_disps
 
             plot_y_displacement_heatmap(window_size=rdmax * 2, model_width=wlx, model_height=wly, name=excavation_pos, interpolate='nearest', resu_path=resu_path)
@@ -137,21 +136,26 @@ def run_simulation(params):
         # plot every y disp vs section number
         plt.figure(figsize=(10, 6))
         for excavation_pos, y_disps in y_disps_list.items():
-            x_positions = [first_section_length + (i-1) * sec_interval if first_section_length > 0 else i * sec_interval for i in range(1, sec_num + 1)]
+            x_positions = [first_section_length / 2 if first_section_length > 0 else sec_interval / 2] + [first_section_length + i * sec_interval + sec_interval / 2 if first_section_length > 0 else i * sec_interval + sec_interval / 2 for i in range(0, sec_num - 1)]
             plt.plot(x_positions, y_disps, label=f'{excavation_pos}')
         plt.xlabel('Working Face Position (m)')
+        plt.xlim(0, wlx)
         plt.ylabel('Vertical Displacement (m)')
-        plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        plt.legend(loc='center left', bbox_to_anchor=(1, 0.5), ncol=2, fontsize='small')
         plt.savefig(os.path.join(resu_path, 'img', 'surface_y_disp_vs_section.png'), dpi=400, bbox_inches='tight')
 
         # save y_disps_list to csv
         with open(os.path.join(resu_path, 'surface_y_disp_vs_section.csv'), 'w', newline='') as csvfile:
             writer = csv.writer(csvfile)
             # Write header row with step numbers
-            writer.writerow(['Section'] + list(np.fromiter(y_disps_list.keys(), dtype=float)))
+            writer.writerow(['Monitoring Point'] + list(np.fromiter(y_disps_list.keys(), dtype=float)))
             # Write data rows
-            for section in range(1, sec_num + 1):
-                row = [section] + [y_disps_list[step][section-1] for step in y_disps_list]
+            for section in range(0, sec_num):
+                if section == 0:
+                    x_position = first_section_length / 2 if first_section_length > 0 else sec_interval / 2
+                else:
+                    x_position = first_section_length + section * sec_interval + sec_interval / 2 if first_section_length > 0 else section * sec_interval + sec_interval / 2
+                row = [x_position] + [y_disps_list[step][section] for step in y_disps_list]
                 writer.writerow(row)
 
         # rename the result folder to the "experiments/exp_{fric}_{rfric}_{dpnr}_{dpsr}_{F0}_{D0}"
