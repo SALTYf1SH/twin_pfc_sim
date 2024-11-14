@@ -10,17 +10,17 @@ deterministic_mode = True
 
 layer_array = [
     5,  # coal layer height
-    2,
-    1,
-    3,
-    5,
-    2,
-    5,
-    3,
+    7,
     8,
-    2,
-    3,
-    4
+    11,
+    16,
+    18,
+    23,
+    26,
+    34,
+    36,
+    39,
+    43.2,
 ]
 subsurface_level = 2   # set the height of the subsurface
 first_section_length = 4  # set the length of the first section
@@ -127,7 +127,7 @@ def run_simulation(**params):
     y_disps_list = {}
     
     # Loop through sections
-    for i in range(opencut_sec, sec_num-2):
+    for i in range(opencut_sec, sec_num - 3):
         if first_section_length > 0:
             excavation_pos = first_section_length + i * sec_interval
         else:
@@ -163,10 +163,12 @@ def run_simulation(**params):
     # plot every y disp vs section number
     plt.figure(figsize=(10, 6))
     for excavation_pos, y_disps in y_disps_list.items():
-        x_positions = [first_section_length / 2 if first_section_length > 0 else sec_interval / 2] + [first_section_length + i * sec_interval + sec_interval / 2 if first_section_length > 0 else i * sec_interval + sec_interval / 2 for i in range(0, sec_num - 1)]
+        x_positions = [first_section_length / 2 if first_section_length > 0 else sec_interval / 2] + \
+                    [first_section_length + i * sec_interval + sec_interval / 2 if first_section_length > 0 else i * sec_interval + sec_interval / 2 for i in range(0, sec_num - 2)] + \
+                    [int(wlx)]
         plt.plot(x_positions, y_disps, label=f'{excavation_pos}')
     plt.xlabel('Working Face Position (m)')
-    plt.xlim(0, wlx)
+    plt.xlim(0, int(wlx))
     plt.ylabel('Vertical Displacement (m)')
     plt.legend(loc='center left', bbox_to_anchor=(1, 0.5), ncol=1, fontsize='small')
     plt.savefig(os.path.join(resu_path, 'img', 'surface_y_disp_vs_section.png'), dpi=400, bbox_inches='tight')
@@ -180,6 +182,8 @@ def run_simulation(**params):
         for section in range(0, sec_num):
             if section == 0:
                 x_position = first_section_length / 2 if first_section_length > 0 else sec_interval / 2
+            elif section == sec_num - 1:
+                x_position = int(wlx)
             else:
                 x_position = first_section_length + (section - 1) * sec_interval + sec_interval / 2 if first_section_length > 0 else (section - 1) * sec_interval + sec_interval / 2
             row = [x_position] + [y_disps_list[step][section] for step in y_disps_list]

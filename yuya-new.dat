@@ -4,11 +4,11 @@
 [poros      =   0.03   ]  ; initial porosity [-]
 
 fish define par
-    width=59
+    width=60
     height=44
-    rdmax=0.3
-    rdmin=0.25
-    poro=0.08
+    rdmax=0.4
+    rdmin=0.3
+    poro=0.03
 end
 
 @par

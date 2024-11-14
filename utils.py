@@ -320,6 +320,8 @@ def fenceng(sec_interval, layer_array, first_section_length=5, subsurface_level=
     for i in range(1, len(height_array)):
         ypos_up = ypos0 + height_array[i]
         ypos_down = ypos0 if i == 1 else ypos0 + height_array[i-1]
+
+        print(f"Layer {i}: ypos_down: {ypos_down}, ypos_up: {ypos_up}")
         
         # Assign balls to layer groups
         set_balls_group_in_area(
@@ -350,7 +352,7 @@ def fenceng(sec_interval, layer_array, first_section_length=5, subsurface_level=
         set_balls_group_in_area(
             x_min=xpos_left,
             x_max=xpos_right,
-            y_min=wall.find('boxWallBottom1').pos_y(),
+            y_min=ypos0,
             y_max=wall.find('boxWallTop3').pos_y(),
             group_name=str(j),
             slot_name='section'
@@ -367,7 +369,7 @@ def fenceng(sec_interval, layer_array, first_section_length=5, subsurface_level=
         set_balls_group_in_area(
             x_min=xpos_left,
             x_max=xpos_right,
-            y_min=wall.find('boxWallBottom1').pos_y(),
+            y_min=ypos0,
             y_max=wall.find('boxWallTop3').pos_y(),
             group_name=str(j + 1),
             slot_name='section'
