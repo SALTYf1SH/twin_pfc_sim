@@ -10,6 +10,17 @@ deterministic_mode = True
 
 layer_array = [
     5,  # coal layer height
+    2,
+    1,
+    3,
+    5,
+    2,
+    5,
+    3,
+    8,
+    2,
+    3,
+    4
 ]
 subsurface_level = 2   # set the height of the subsurface
 first_section_length = 4  # set the length of the first section
