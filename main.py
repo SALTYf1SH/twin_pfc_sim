@@ -35,7 +35,7 @@ F0 = 1e5    # maximum attractive force at subsurface (N), range: 0-inf
 D0 = 1e-3   # attraction range at subsurface (m), range: 0-inf
 
 opencut_sec = 5   # set the section where excavation starts
-step_solve_time = 1  # Define step solve time
+step_solve_time = 3  # Define step solve time
 
 def run_simulation(**params):
 

@@ -23,7 +23,7 @@ first_section_length = 4   # set the length of the first section
 sec_interval = 3   # set the length of each section
 
 opencut_sec = 5   # set the section where excavation starts
-step_solve_time = 1  # Define step solve time
+step_solve_time = 3  # Define step solve time
 
 # Prevent Python state from resetting when issuing 'model new' or 'model restore'
 itasca.command("python-reset-state false")
