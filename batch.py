@@ -34,7 +34,7 @@ def run_simulation(params):
         itasca.set_deterministic(deterministic_mode)
         fric, rfric, dpnr, dpsr, F0, D0 = params
         # Create result path with contact properties and date
-        resu_path = f'experiments/exp_{fric}_{rfric}_{dpnr}_{dpsr}_{F0}_{D0}'
+        resu_path = f'experiments/running_{fric}_{rfric}_{dpnr}_{dpsr}_{F0}_{D0}'
         
         # Create main result directory and subdirectories
         if not os.path.exists(resu_path):
@@ -153,12 +153,15 @@ def run_simulation(params):
             for section in range(1, sec_num + 1):
                 row = [section] + [y_disps_list[step][section-1] for step in y_disps_list]
                 writer.writerow(row)
+
+        # rename the result folder to the "experiments/exp_{fric}_{rfric}_{dpnr}_{dpsr}_{F0}_{D0}"
+        os.rename(resu_path, f'experiments/exp_{fric}_{rfric}_{dpnr}_{dpsr}_{F0}_{D0}')
         
-        return True
+        return True, f"Simulation finished in {resu_path}"
         
     except Exception as e:
         print(f"Error in simulation {resu_path}: {str(e)}")
-        return False
+        return False, f"Error in simulation {resu_path}: {str(e)}"
 
 def main(start_comb_idx, exp_num):
     # Define parameter ranges
@@ -209,7 +212,7 @@ def main(start_comb_idx, exp_num):
         print(f"\nRunning combination {i + start_comb_idx}/{total_combinations}")
         print(f"Parameters: fric={params[0]}, rfric={params[1]}, dpnr={params[2]}, dpsr={params[3]}, F0={params[4]}, D0={params[5]}")
         
-        success = run_simulation(params)
+        success, msg = run_simulation(params)
 
         # Log progress
         with open(log_file, 'a') as f:
@@ -217,6 +220,7 @@ def main(start_comb_idx, exp_num):
             f.write(f"[{timestamp}] [INFO] Combination {i + start_comb_idx}/{total_combinations}\n")
             f.write(f"[{timestamp}] [PARAMS] fric={params[0]}, rfric={params[1]}, dpnr={params[2]}, dpsr={params[3]}, F0={params[4]}, D0={params[5]}\n")
             f.write(f"[{timestamp}] [STATUS] {'Success' if success else 'Failed'}\n")
+            f.write(f"[{timestamp}] [MSG] {msg}\n")
             f.write("-" * 50 + "\n")
         
         # Calculate and display estimated time remaining
