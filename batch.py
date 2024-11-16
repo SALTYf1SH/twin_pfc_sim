@@ -69,6 +69,8 @@ def run_simulation(params):
         itasca.fish.set('D0', D0)
 
         run_dat_file("pingheng-linear.dat")
+        if checkpoint:
+            itasca.command(f"model save '{os.path.join(resu_path, 'sav', 'pingheng')}'")
 
         # kaiwa
         # Reset ball attributes
@@ -208,8 +210,8 @@ def main(start_comb_idx, exp_num):
     # Create log file
     log_file = 'grid_search.log'
     # delete log file if it exists
-    if os.path.exists(log_file):
-        os.remove(log_file)
+    # if os.path.exists(log_file):
+    #     os.remove(log_file)
     run_combinations = len(param_combinations)
     
     print(f"Starting grid search at combination {start_comb_idx} with {run_combinations} combinations")

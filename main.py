@@ -199,6 +199,7 @@ if __name__ == "__main__":
         dpnr=dpnr, 
         dpsr=dpsr, 
         F0=F0,
+        D0=D0,
         opencut_sec=opencut_sec,
         step_solve_time=step_solve_time,
         layer_array=layer_array,
