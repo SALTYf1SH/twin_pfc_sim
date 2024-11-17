@@ -151,7 +151,7 @@ def run_simulation(**params):
         elif i < sec_num-3:
             itasca.command(f"model solve cycle {step_interval} or ratio-average 1e-3")
         else:
-            itasca.command(f"model solve cycle {step_interval} or ratio-average 1e-3")
+            itasca.command(f"model solve ratio-average 1e-3")
         itasca.command(f"model save '{os.path.join(resu_path, 'sav', str(i))}'")
 
         # get avg y disp of each section and plot the y disp vs section number
