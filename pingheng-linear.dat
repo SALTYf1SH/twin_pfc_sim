@@ -102,27 +102,22 @@ contact cmat add 3 model rrlinear ...
  rr_fric 0 ...
  range contact group 'ballfacet=bottom'
 
-model clean
-
-contact cmat apply
-
-;contact method bond gap [rdmin] range contact type 'ball-ball'
-
 ; Ball-ball contact model for layer boundary
 [pb_modules=1e9]
 [emod000=1e9]
-[ten_=2e5]
-[coh_=2e5]
+[ten_=5e4]
+[coh_=5e4]
 [fric=0.1]
 [kratio=2.]
 
-contact model 'linearpbond' range contact group 'boundary=pbond'
-contact method bond gap 0.5 range contact group 'boundary=pbond'
-contact method deform emod [emod000] krat [kratio] range contact group 'boundary=pbond'
-contact method pb_deform emod [pb_modules] kratio [kratio] range contact group 'boundary=pbond'
-contact property dp_nratio 0.5 dp_sratio 0.0 range contact group 'boundary=pbond'
-contact property fric [fric] range contact group 'boundary=pbond'
-contact property pb_rmul 1 pb_mcf 1 lin_mode 1 pb_ten [ten_] pb_coh [coh_] pb_fa 60 range contact group 'boundary=pbond'
+contact cmat add 4 model linearpbond ...
+ method bond gap 0.5 ...
+ method deform emod [emod000] krat [kratio] ...
+ method pb_deform emod [pb_modules] kratio [kratio] ...
+ property dp_nratio 0.5 dp_sratio 0.0 ...
+ fric [fric] ...
+ pb_rmul 1 pb_mcf 1 lin_mode 1 pb_ten [ten_] pb_coh [coh_] pb_fa 60 ...
+ range contact group 'boundary=pbond'
 
 ; Ball-ball contact model for coal seam
 [pb_modules=1e9]
@@ -132,13 +127,17 @@ contact property pb_rmul 1 pb_mcf 1 lin_mode 1 pb_ten [ten_] pb_coh [coh_] pb_fa
 [fric=1]
 [kratio=2.]
 
-contact model 'linearpbond' range contact group 'ballball=1'
-contact method bond gap 0.5 range contact group 'ballball=1'
-contact method deform emod [emod000] krat [kratio] range contact group 'ballball=1'
-contact method pb_deform emod [pb_modules] kratio [kratio] range contact group 'ballball=1'
-contact property dp_nratio 0.5 dp_sratio 0.0 range contact group 'ballball=1'
-contact property fric [fric] range contact group 'ballball=1'
-contact property pb_rmul 1 pb_mcf 1 lin_mode 1 pb_ten [ten_] pb_coh [coh_] pb_fa 60 range contact group 'ballball=1'
+contact cmat add 5 model linearpbond ...
+ method bond gap 0.5 ...
+ method deform emod [emod000] krat [kratio] ...
+ method pb_deform emod [pb_modules] kratio [kratio] ...
+ property dp_nratio 0.5 dp_sratio 0.0 ...
+ fric [fric] ...
+ pb_rmul 1 pb_mcf 1 lin_mode 1 pb_ten [ten_] pb_coh [coh_] pb_fa 60 ...
+ range contact group 'ballball=1'
+
+model clean all
+contact cmat apply
 
 ;model gravity [9.8*wlx/wly]
 

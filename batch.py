@@ -35,6 +35,10 @@ def run_simulation(params):
         fric, rfric, dpnr, dpsr, F0, D0 = params
         # Create result path with contact properties and date
         resu_path = f'experiments/running_{fric}_{rfric}_{dpnr}_{dpsr}_{F0}_{D0}'
+
+        if os.path.exists(f'experiments/exp_{fric}_{rfric}_{dpnr}_{dpsr}_{F0}_{D0}'):
+            print(f"Warning: The simulation in {resu_path} already exists, ending simulation.")
+            return False, f"The simulation in {resu_path} already exists, ending simulation."
         
         # Create main result directory and subdirectories
         if not os.path.exists(resu_path):
@@ -147,6 +151,7 @@ def run_simulation(params):
         plt.ylabel('Vertical Displacement (m)')
         plt.legend(loc='center left', bbox_to_anchor=(1, 0.5), ncol=1, fontsize='small')
         plt.savefig(os.path.join(resu_path, 'img', 'surface_y_disp_vs_section.png'), dpi=400, bbox_inches='tight')
+        plt.close()
 
         # save y_disps_list to csv
         with open(os.path.join(resu_path, 'surface_y_disp_vs_section.csv'), 'w', newline='') as csvfile:
@@ -190,8 +195,8 @@ def main(start_comb_idx, exp_num):
         'rfric': [0.05,],  # 4 values from 0.0 to 1.0
         'dpnr': [0.2,],   # 5 values from 0.0 to 1.0
         'dpsr': [0.2,],   # 5 values from 0.0 to 1.0
-        'F0': np.logspace(3, 5, 10),
-        'D0': np.logspace(-6, 0, 10)
+        'F0': np.linspace(1e4, 1e5, 10),
+        'D0': np.linspace(0.1, 0.5, 10)
     }
     
     # Generate all combinations

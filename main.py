@@ -32,7 +32,7 @@ rfric = 0.0   # rolling friction coefficient, range: 0.0-1.0
 dpnr = 0.2   # normal damping coefficient, range: 0.0-1.0
 dpsr = 0.2    # shear damping coefficient, range: 0.0-1.0
 F0 = 1e5    # maximum attractive force at subsurface (N), range: 0-inf
-D0 = 1e-3   # attraction range at subsurface (m), range: 0-inf
+D0 = 0.2   # attraction range at subsurface (m), range: 0-inf
 
 opencut_sec = 5   # set the section where excavation starts
 step_solve_time = 3  # Define step solve time
