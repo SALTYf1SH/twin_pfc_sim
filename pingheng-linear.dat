@@ -1,5 +1,5 @@
 ; Contact model properties
-[emod   = 1.0e7]  ; Young's modulus (deformability method) [Pa]
+[emod   = 1.0e10]  ; Young's modulus (deformability method) [Pa]
 [kratio = 2.0  ]  ; stiffness ratio (deformability method) [-]
 [dpm    = 3    ]  ; dashpot mode                           [-]
 ;[fric   = 0.01 ]  ; friction coefficient                   [-]
