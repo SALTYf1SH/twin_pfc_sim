@@ -273,7 +273,7 @@ def run_simulation(**params):
         itasca.command(f"model solve cycle 10")
         global_timestep = itasca.timestep()
         step_interval_cycles = int(step_solve_time / global_timestep)
-        step_interval_cycles = 100
+        step_interval_cycles = 8000
 
         itasca.command(f"model solve cycle {step_interval_cycles} or ratio-average 1e-5")
         itasca.command(f"model save '{os.path.join(resu_path, 'sav', str(i))}'")

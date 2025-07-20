@@ -13,7 +13,7 @@ fish callback remove @sevro_walls -1.0
 wall delete walls range id 3
 ;wall servo force (0,-5e6) activate on range id 3
 model clean all
-contact cmat default type ball-ball model linearpbond
+contact cmat default type ball-ball model linearpbond method deform emod @emod000 kratio @kratio pb_deform emod @pb_modules kratio @kratio property dp_nratio 0.5 dp_sratio 0.0  fric @fric pb_rmul 1 pb_mcf 0.1 lin_mode 1 pb_ten @ten_ pb_coh @coh_ pb_fa 38
 contact method deform emod @emod000 kratio @kratio range contact type 'ball-ball' 
 contact method pb_deform emod @pb_modules kratio @kratio range contact type 'ball-ball'
 contact property dp_nratio 0.5 dp_sratio 0.0 range contact type 'ball-ball'
