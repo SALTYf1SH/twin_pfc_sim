@@ -35,6 +35,7 @@ end
 
 fish callback remove @sevro_walls -1.0
 wall delete walls range id 3
+;wall servo force (0,-5e6) activate on range id 3
 model clean all
 
 @contact_group

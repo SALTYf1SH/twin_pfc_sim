@@ -1,0 +1,110 @@
+[pb_modules=1e9]
+
+[emod000=15e9]
+
+[ten_=1.5e6]
+
+[coh_=1.5e6]
+
+[fric=0.1]
+
+[kratio=2.]
+fish callback remove @sevro_walls -1.0
+wall delete walls range id 3
+;wall servo force (0,-5e6) activate on range id 3
+model clean all
+contact cmat default type ball-ball model linearpbond
+contact method deform emod @emod000 kratio @kratio range contact type 'ball-ball' 
+contact method pb_deform emod @pb_modules kratio @kratio range contact type 'ball-ball'
+contact property dp_nratio 0.5 dp_sratio 0.0 range contact type 'ball-ball'
+contact property fric @fric range contact type 'ball-ball'
+
+
+contact property pb_rmul 1 pb_mcf 0.1 lin_mode 1 ...
+                    pb_ten @ten_ pb_coh @coh_ pb_fa 38 ...
+                    range contact type 'ball-ball'
+contact method bond gap @rdmin range contact type 'ball-ball'
+
+
+
+def contact_group
+     loop foreach local cp contact.list
+         if type.pointer(cp) = 'ball-ball'
+             if ball.group(contact.end1(cp)) # ball.group(contact.end2(cp))
+                contact.group(cp) = 'pbond_boundary'
+             endif
+         endif
+     endloop
+
+end
+
+@contact_group
+
+
+
+[pb_modules=1e9]
+
+[emod111=1e9]
+
+[ten1_=2e5]
+
+[coh1_=2e5]
+
+[fric1=0.1]
+
+[kratio=2.]
+
+[dpnr = 0.5]
+
+[dpsr = 0.0]
+
+
+contact cmat add 1 model linearpbond ... 
+ method bond gap 0.5 ...
+ deformability ... 
+ emod @emod111 ... 
+ kratio @kratio ...
+ pb_deform ... 
+ emod @pb_modules ...
+ kratio @kratio ...
+ property fric @fric ... 
+ dp_nratio @dpnr ... 
+ dp_sratio @dpsr ...  
+ fric @fric ... 
+ range contact group 'pbond_boundary'
+
+;contact groupbehavior contact
+;
+;contact model linearpbond range contact group 'pbond_boundary'
+;
+;contact method bond gap 0.5 range contact group 'pbond_boundary'
+;
+;contact method deform emod [emod000] krat [kratio] range contact group 'pbond_boundary'
+;
+;contact method pb_deform emod [pb_modules] kratio [kratio] range contact group 'pbond_boundary'
+;
+;contact property dp_nratio 0.5 dp_sratio 0.0 range contact group 'pbond_boundary'
+;
+;contact property fric [fric] range contact group 'pbond_boundary'
+
+contact property pb_rmul 1 pb_mcf 1 lin_mode 1 ...
+                    pb_ten [ten1_] pb_coh [coh1_] pb_fa 60 ...
+                    range contact group 'pbond_boundary'
+model gravity 10
+;set gravity [9.8*wlx/wly]
+
+cycle 1 
+
+solve
+
+echo off
+
+call 'fracture.p2fis'
+
+@track_init
+
+echo on
+
+
+
+model save 'pingheng'

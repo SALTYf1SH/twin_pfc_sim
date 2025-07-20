@@ -1,3 +1,4 @@
+
 import csv
 import itasca
 from itasca import ball, wall
@@ -7,26 +8,26 @@ import os
 from utils import *
 
 # ==============================================================================
-# 0. 全局设置
+# 0. Global Settings
 # ==============================================================================
-deterministic_mode = True # 设为True可保证每次运行结果一致
+deterministic_mode = True  # Set to True to ensure consistent results for each run
 
 # ==============================================================================
-# 1. 定义岩层地质 (单位: 米)
+# 1. Define Rock Strata Geology (Unit: meters)
 # ==============================================================================
-# 直接定义各岩层厚度 (单位: 米)，顺序与您提供的表格一致 (从上到下)
+# Directly define the thickness of each rock layer (Unit: meters), the order is consistent with the table you provided (from top to bottom)
 thicknesses_in_meters = [
-    0.2050, 0.0300, 0.0750, 0.3000, 0.0800, 0.0750, 0.0650, 0.0600, 0.0450, 
-    0.0700, 0.0900, 0.0650, 0.0650, 0.0750, 0.0200, 0.0900, 0.0600, 0.0300, 
-    0.0350, 0.0550
+    20.50, 3.00, 7.50, 30.00, 8.00, 7.50, 6.50, 6.00, 4.50, 
+    7.00, 9.00, 6.50, 6.50, 7.50, 2.00, 9.00, 6.00, 3.00, 
+    3.50, 5.50
 ]
 
-# *** 修正：颠倒岩层列表 ***
-# 您的表格是从上到下，而建模需要从下到上。因此，将列表顺序反转。
+# *** Correction: Invert the rock layer list ***
+# Your table is from top to bottom, while modeling requires it from bottom to top. Therefore, the list order is reversed.
 thicknesses_in_meters.reverse()
 
-# 自动计算累积高度，这将是新的 layer_array
-# 这个数组定义了从下到上每个地层的顶部高程 (单位: 米)
+# Automatically calculate the cumulative height, this will be the new layer_array
+# This array defines the top elevation of each stratum from bottom to top (Unit: meters)
 cumulative_heights = []
 current_height = 0
 for thickness in thicknesses_in_meters:
@@ -34,95 +35,94 @@ for thickness in thicknesses_in_meters:
     cumulative_heights.append(round(current_height, 4))
 
 layer_array = cumulative_heights
-# 根据您的数据，模型总高度约为 1.6m, 模型宽度应在.dat文件中设为 2.5m
+# Based on your data, the total model height is about 1.6m, and the model width should be set to 2.5m in the .dat file
 
 # ==============================================================================
-# 2. 设置模型和模拟参数 (单位: 米)
+# 2. Set Model and Simulation Parameters (Unit: meters)
 # ==============================================================================
 
-# --- 开挖参数 (单位: 米) ---
-# 注意：模型总宽2.5m，请确保开挖参数合理
-subsurface_level = 0.1   # 地表土层厚度 (m)
+# --- Excavation Parameters (Unit: meters) ---
+# Note: The total model width is 2.5m, please ensure the excavation parameters are reasonable
+subsurface_level = 0.1    # Thickness of the surface soil layer (m)
 
-# 根据用户要求，从距左侧边界45cm处开始开挖，到距右侧45cm处停止
-left_pillar_width = 0.45 # 左侧煤柱宽度 (m)
-right_pillar_width = 0.45 # 右侧煤柱宽度 (m)
+# According to user requirements, excavation leaves a 45cm pillar on the left and a 45cm pillar on the right.
+left_pillar_width = 45  # Width of the left coal pillar (m)
+right_pillar_width = 45 # Width of the right coal pillar (m)
 
-# 将左侧煤柱宽度设为第一个分区的长度
+# Set the width of the left coal pillar as the length of the first section
 first_section_length = left_pillar_width
 
-# 定义每个开挖步的宽度
-sec_interval = 0.2   # 后续开挖区块长度 (m)
+# Define the width of each excavation step
+sec_interval = 20  # Length of subsequent excavation blocks (m)
 
-# --- 力学参数 (重要提示!) ---
-# 以下参数为示例值，并非针对您的特定岩层。
-# 真实模拟需要对每一种岩性（如中粒砂岩、粉砂岩等）进行参数标定，
-# 以获得与实际岩石力学特性匹配的微观参数集。
-fric = 0.05    # 摩擦系数 (无单位)
-rfric = 0.0   # 滚动摩擦系数 (无单位)
-dpnr = 0.2   # 法向阻尼系数 (无单位)
-dpsr = 0.2    # 切向阻尼系数 (无单位)
+# --- Mechanical Parameters (Important Note!) ---
+# The following parameters are example values and are not specific to your particular rock strata.
+# A real simulation requires parameter calibration for each rock type (e.g., medium-grained sandstone, siltstone, etc.)
+# to obtain a set of microscopic parameters that match the actual rock mechanical properties.
+fric = 0.05     # Friction coefficient (dimensionless)
+rfric = 0.0     # Rolling friction coefficient (dimensionless)
+dpnr = 0.2      # Normal damping coefficient (dimensionless)
+dpsr = 0.2      # Shear damping coefficient (dimensionless)
 
-# --- 故障排除：模型收缩问题的参数调整 ---
-# 您遇到的模型“缩成一块”的问题，是由于颗粒刚度(stiffness)与吸引力(cohesion)不匹配导致的。
-# 当吸引力 F0 很大，而颗粒刚度 emod 太小时，颗粒就会被过度“压缩”，导致模型坍缩。
+# --- Troubleshooting: Parameter adjustment for model shrinkage issues ---
+# The "collapsing into a block" issue you encountered is caused by a mismatch between particle stiffness and cohesion.
+# When the cohesive force F0 is very large and the particle stiffness emod is too small,
+# the particles will be overly "compressed", leading to model collapse.
 #
-# 解决方案:
-# 1. 打开您的 .dat 文件 (很可能是 yuya-new.dat 或 pingheng-linear.dat)。
-# 2. 找到定义颗粒刚度的命令，通常是 "ball attribute emod ..." 或在 "ball contact-model" 命令中。
-# 3. 大幅提高 emod 的值。例如，如果当前是 emod 1e6，请尝试修改为 emod 1e7 或 emod 1e8。
-# 4. 保存 .dat 文件并重新运行此 Python 脚本。
+# Solution:
+# 1. Open your .dat file (likely yuya-new.dat or pingheng-linear.dat).
+# 2. Find the command that defines particle stiffness, usually "ball attribute emod ..." or within the "ball contact-model" command.
+# 3. Significantly increase the value of emod. For example, if it is currently emod 1e6, try changing it to emod 1e7 or emod 1e8.
+# 4. Save the .dat file and re-run this Python script.
 #
-# 提高刚度可以使颗粒有效抵抗强大的吸引力，从而在保持粘聚力的同时维持模型的稳定。
+# Increasing stiffness allows particles to effectively resist strong cohesive forces,
+# thus maintaining model stability while preserving cohesion.
 
-F0 = 1e5    # 地表层最大吸引力 (N) -> 已恢复原值
-D0 = 0.2   # 地表层吸引力范围 (m)
+F0 = 1e5      # Maximum cohesive force in the surface layer (N) -> Restored to original value
+D0 = 0.2      # Cohesion range in the surface layer (m)
 
-# --- 模拟流程控制 ---
-# *** 修正：更新开挖煤层编号 ***
-# 由于岩层顺序已颠倒，原先从顶部数第10层的"3-1 coal"，现在是从底部数第11层。
-# utils.py中的fenceng函数从'1'开始命名地层组。
-excavation_layer_group = '11' # 开挖第11层: 3-1 coal。
+# --- Simulation Flow Control ---
+# *** Correction: Update the excavated coal seam group name ***
+# Since the rock layer order has been reversed, the layer to be excavated has changed.
+# The fenceng function in utils.py names layer groups starting from '1'.
+excavation_layer_group = '11' # Excavate group '11', which corresponds to the "3-1 coal" seam.
 
-# 自动计算开挖的起始与终止分区
-# 第0区是左侧煤柱，因此从第1区开始开挖
-excavation_start_section = 1
 
-# 计算需要开挖多少个分区
-model_width = 2.5 # 模型总宽度
-excavation_width = model_width - left_pillar_width - right_pillar_width
-num_excavation_sections = int(round(excavation_width / sec_interval))
+model_width = 250# Total model width
 
-# 计算终止开挖的分区编号
-excavation_end_section = excavation_start_section + num_excavation_sections - 1
+# Automatically calculate the start and end sections for excavation
+# Section 0 is the left pillar, so excavation starts from section 1
+excavation_start_px = left_pillar_width
+excavation_end_px = model_width - right_pillar_width
+excavation_step = int(excavation_end_px/sec_interval)
 
-step_solve_time = 3  # 定义每步开挖后的求解时间 (秒)
+step_solve_time = 3   # Define the solving time after each excavation step (seconds)
 
 def run_simulation(**params):
 
-    # 创建结果路径
+    # Create result path
     resu_path = f'experiments/exp_{fric}_{rfric}_{dpnr}_{dpsr}_{F0}_{D0}'
     
-    # 创建结果文件夹
+    # Create result folders
     if not os.path.exists(resu_path):
         os.makedirs(resu_path)
         os.makedirs(os.path.join(resu_path, 'img'))
-        os.makedirs(os.path.join(resu_path, 'sav')) 
+        os.makedirs(os.path.join(resu_path, 'sav'))
         os.makedirs(os.path.join(resu_path, 'mat'))
 
-    # 防止PFC重置Python状态
+    # Prevent PFC from resetting the Python state
     itasca.command("python-reset-state false")
 
     itasca.command("model new")
 
     itasca.set_deterministic(deterministic_mode)
 
-    # 1. 生成初始颗粒模型 (yuya-new.dat)
-    # 重要: 请确保 yuya-new.dat 文件中的墙体宽度为2.5m，颗粒半径为0.005-0.0075m
+    # 1. Generate initial particle model (yuya-new.dat)
+    # Important: Please ensure the wall width in yuya-new.dat is 2.5m, and particle radii are 0.005-0.0075m
     run_dat_file("yuya-new.dat")
     itasca.command("model save 'yuya'")
 
-    # 删除墙体外的颗粒
+    # Delete balls outside the walls
     delete_balls_outside_area(
         x_min=wall.find('boxWallLeft4').pos_x(),
         x_max=wall.find('boxWallRight2').pos_x(),
@@ -130,116 +130,116 @@ def run_simulation(**params):
         y_max=wall.find('boxWallTop3').pos_y()
     )
 
-    # 2. 对模型进行分层与分区
+    # 2. Stratify and section the model
     itasca.command("model restore 'yuya'")
     sec_num = fenceng(
-        sec_interval=sec_interval, 
-        layer_array=layer_array,
-        first_section_length=first_section_length,
-        subsurface_level=subsurface_level
+        layer_array=layer_array
     )
     itasca.command("model save 'fenceng'")
 
-    # 3. 初始平衡
+    # 3. Initial equilibrium
     itasca.command("model restore 'fenceng'")
 
     wall_up_pos_y = wall.find('boxWallTop3').pos_y()
     wlx, wly = compute_dimensions()
 
-    # 将力学参数传递给PFC
-    itasca.fish.set('fric', fric)
-    itasca.fish.set('rfric', rfric)
-    itasca.fish.set('dpnr', dpnr)
-    itasca.fish.set('dpsr', dpsr)
-    itasca.fish.set('F0', F0)
-    itasca.fish.set('D0', D0)
-
-    # 运行平衡计算脚本
-    run_dat_file("pingheng-linear.dat")
-    itasca.command(f"model save '{os.path.join(resu_path, 'sav', 'pingheng')}'")
-
-    # 4. 模拟开挖
-    itasca.command(f"model restore '{os.path.join(resu_path, 'sav', 'pingheng')}'")
+    # Pass mechanical parameters to PFC
+    itasca.fish.set('pb_modules', 1e9)
+    itasca.fish.set('emod000', 15e9)
+    itasca.fish.set('ten_', 1.5e6)
+    itasca.fish.set('coh_', 1.5e6)
+    itasca.fish.set('fric', 0.1)
+    itasca.fish.set('kratio', 2.)
     
-    # 重置颗粒位移等属性
+    itasca.fish.set('emod111', 1e9)
+    itasca.fish.set('ten_', 2e5)
+    itasca.fish.set('coh_', 2e5)
+    itasca.fish.set('dpnr', 0.5)
+    itasca.fish.set('dpnr', 0.0)
+
+
+    # Run the equilibrium calculation script
+    run_dat_file("jiaojie.dat")
+    itasca.command(f"model save '{os.path.join(resu_path, 'sav', 'jiaojie')}'")
+
+    # 4. Simulate excavation
+    itasca.command(f"model restore '{os.path.join(resu_path, 'sav', 'jiaojie')}'")
+    
+    # Reset ball attributes like displacement
     itasca.command("ball attribute velocity 0 spin 0 displacement 0")
 
-    # 获取模型顶部用于监测地表沉降的颗粒
+    # Get the top balls for monitoring surface subsidence
     top_ball_pos = get_balls_max_pos(1)
 
-    # 检查模型是否发生过度膨胀或收缩
+    # Check if the model is excessively expanding or contracting
     if top_ball_pos > wall_up_pos_y * 1.1:
-        print(f"警告: 模型正在膨胀，请检查参数。当前顶部高度: {top_ball_pos}, 模型墙高: {wall_up_pos_y}")
+        print(f"Warning: Model is expanding, please check parameters. Current top height {top_ball_pos}, model wall height: {wall_up_pos_y}")
     if top_ball_pos < wall_up_pos_y * 0.8:
-        print(f"警告: 模型正在收缩，请检查参数。当前顶部高度: {top_ball_pos}, 模型墙高: {wall_up_pos_y}")
+        print(f"Warning: Model is contracting, please check parameters. Current top height {top_ball_pos}, model wall height: {wall_up_pos_y}")
 
     rdmax = itasca.fish.get('rdmax')
     
-    # 将每个分区的顶部颗粒存入字典，用于后续位移监测
+    # Store the top balls of each section in a dictionary for subsequent displacement monitoring
     ball_objects_dict = {}
     for i in range(0, sec_num):
         ball_objects_dict[str(i)] = get_balls_object_in_area(str(i), top_ball_pos-rdmax*1.5, top_ball_pos)
 
-    # 删除没有监测到颗粒的空分区
+    # Delete empty sections where no monitoring balls were found
     empty_sections = [k for k, v in ball_objects_dict.items() if not v]
     if empty_sections:
-        print(f"警告: 以下分区未找到监测颗粒，将被忽略: {empty_sections}")
+        print(f"Warning: No monitoring balls found in the following sections, they will be ignored: {empty_sections}")
         ball_objects_dict = {k: v for k, v in ball_objects_dict.items() if v}
         sec_num = len(ball_objects_dict)
 
     y_disps_list = {}
     
-    # 开始循环开挖 (使用新的起止分区)
-    for i in range(excavation_start_section, excavation_end_section + 1):
-        # 'excavation_pos' 代表当前开挖工作面的x坐标
-        excavation_pos = first_section_length + (i - excavation_start_section + 1) * sec_interval
+    # Start the excavation loop (using the new start/end sections)
+
+    for i in range(0, excavation_step):
+        # 'excavation_pos' represents the x-coordinate of the current excavation face
+        excavation_pos = excavation_start_px + i * sec_interval
         
-        # 删除指定煤层和分区内的颗粒
-        for ball_obj in list(ball.list()):
-            if ball_obj.valid():
-                if ball_obj.in_group(excavation_layer_group, 'layer') and ball_obj.in_group(f'{i}', 'section'):
-                    try:
-                        ball_obj.delete()
-                    except Exception as e:
-                        print(f"删除颗粒 {ball_obj.id()} 时出错: {str(e)}")
+        # Delete balls within the specified coal layer and section
+        command = "ball delete range group '11' pos-x "+str(excavation_pos)+' '+str(excavation_pos+sec_interval)
         
-        # 求解计算
+        # Solve/Calculate
         itasca.command(f"model solve cycle 10")
         global_timestep = itasca.timestep()
         step_interval_cycles = int(step_solve_time / global_timestep)
-        if i < excavation_start_section + 2: # 在开挖初期使用更严格的平衡标准
+        step_interval_cycles = 8000
+        if i < excavation_start_section + 2: # Use a stricter equilibrium criterion in the initial stages of excavation
             itasca.command(f"model solve cycle {step_interval_cycles} or ratio-average 1e-5")
         else:
-            itasca.command(f"model solve cycle {step_interval_cycles} or ratio-average 1e-3")
+            itasca.command(f"model solve cycle {step_interval_cycles} or ratio-average 1e-5")
         itasca.command(f"model save '{os.path.join(resu_path, 'sav', str(i))}'")
 
-        # 获取每个分区的平均垂直位移并记录
+        # Get the average vertical displacement for each section and record it
         y_disps = [get_avg_ball_y_disp(ball_objects_dict[str(k)]) for k in range(0, sec_num)]
         y_disps_list[excavation_pos] = y_disps
 
-        # 绘制并保存当前步骤的位移云图
+        # Plot and save the displacement contour map for the current step
         plot_y_displacement_heatmap(window_size=rdmax * 2, model_width=wlx, model_height=wly, name=f"{excavation_pos:.2f}", interpolate='nearest', resu_path=resu_path)
 
-    # 5. 结果输出
-    # 绘制所有开挖步骤的地表沉降曲线
+    # 5. Result Output
+    # Plot surface subsidence curves for all excavation steps
     plt.figure(figsize=(10, 6))
     for excavation_pos, y_disps in y_disps_list.items():
         x_positions = [first_section_length / 2 if first_section_length > 0 else sec_interval / 2] + \
-                    [first_section_length + k * sec_interval + sec_interval / 2 if first_section_length > 0 else k * sec_interval + sec_interval / 2 for k in range(0, sec_num - 2)] + \
-                    [int(wlx)]
-        plt.plot(x_positions, y_disps, label=f'开挖至 {excavation_pos:.2f} m')
-    plt.xlabel('工作面位置 (m)')
+                      [first_section_length + k * sec_interval + sec_interval / 2 if first_section_length > 0 else k * sec_interval + sec_interval / 2 for k in range(0, sec_num - 2)] + \
+                      [int(wlx)]
+        plt.plot(x_positions, y_disps, label=f'Excavated to {excavation_pos:.2f} m')
+    plt.xlabel('Working Face Position (m)')
     plt.xlim(0, int(wlx))
-    plt.ylabel('垂直位移 (m)')
-    plt.title('地表沉降曲线')
+    plt.ylabel('Vertical Displacement (m)')
+    plt.title('Surface Subsidence Curves')
     plt.legend(loc='center left', bbox_to_anchor=(1, 0.5), ncol=1, fontsize='small')
     plt.savefig(os.path.join(resu_path, 'img', 'surface_y_disp_vs_section.png'), dpi=400, bbox_inches='tight')
     plt.close()
 
-    # 将沉降数据保存到CSV文件
+    # Save subsidence data to a CSV file
     with open(os.path.join(resu_path, 'surface_y_disp_vs_section.csv'), 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow(['监测点位置(m)'] + list(np.fromiter(y_disps_list.keys(), dtype=float)))
+        writer.writerow(['Monitoring Point Position (m)'] + list(np.fromiter(y_disps_list.keys(), dtype=float)))
         for section in range(0, sec_num):
             if section == 0:
                 x_position = first_section_length / 2 if first_section_length > 0 else sec_interval / 2
@@ -250,16 +250,16 @@ def run_simulation(**params):
             row = [x_position] + [y_disps_list[step][section] for step in y_disps_list]
             writer.writerow(row)
     
-    print(f"模拟完成，结果已保存至: {resu_path}")
+    print(f"Simulation complete. Results saved to {resu_path}")
     return True
     
 if __name__ == "__main__":
     run_simulation(
         deterministic_mode=deterministic_mode,
-        fric=fric, 
-        rfric=rfric, 
-        dpnr=dpnr, 
-        dpsr=dpsr, 
+        fric=fric,
+        rfric=rfric,
+        dpnr=dpnr,
+        dpsr=dpsr,
         F0=F0,
         D0=D0,
         step_solve_time=step_solve_time,

@@ -267,28 +267,8 @@ def plot_y_displacement_heatmap(window_size, model_width, model_height, name, in
     # Include the excavation position in the file name
     np.savez(os.path.join(resu_path, 'mat', f'y_displacement_matrix_{name}.npz'), disp_matrix=disp_matrix, x_centers=x_centers, y_centers=y_centers)
 
-def calculate_section_number(wlx, sec_interval, first_section_length=0):
-    """
-    Calculate the number of sections based on model width and interval.
 
-    Args:
-        wlx (float): Total width of the model
-        sec_interval (float): Section interval
-        first_section_length (float): Length of the first section (default: 0)
-
-    Returns:
-        int: Number of sections
-    """
-    assert sec_interval > 0 and first_section_length >= 0, f"Section interval and first section length must be greater than 0, Current sec_interval: {sec_interval}, first_section_length: {first_section_length}"
-    
-    if first_section_length > 0:
-        assert wlx > first_section_length + sec_interval, f"Section length must be less than model width, Current section length: {first_section_length + sec_interval}, model width: {wlx}"
-        return int((wlx - first_section_length) // sec_interval) + 1
-    else:
-        assert wlx > sec_interval, f"Section length must be less than model width, Current section length: {sec_interval}, model width: {wlx}"
-        return int(wlx // sec_interval)
-
-def fenceng(sec_interval, layer_array, first_section_length=5, subsurface_level=5):
+def fenceng(layer_array):
     """
     Create layer and section groups for fenceng model.
 
@@ -308,13 +288,10 @@ def fenceng(sec_interval, layer_array, first_section_length=5, subsurface_level=
     xpos0 = wall.find('boxWallLeft4').pos_x()
     
     # Calculate number of sections based on wall width and interval
-    sec_num = calculate_section_number(wlx, sec_interval, first_section_length)
 
     height_array = [0]
     height_array.extend(layer_array)
-    assert height_array[-1] < wly - subsurface_level, f"Height array must be less than model height, Current height array: {height_array}, model height: {wly}"
-    height_array.append(wly - subsurface_level)
-    height_array.append(wly)
+
 
     # Create layer groups
     for i in range(1, len(height_array)):
@@ -325,59 +302,15 @@ def fenceng(sec_interval, layer_array, first_section_length=5, subsurface_level=
         
         # Assign balls to layer groups
         set_balls_group_in_area(
-            x_min=wall.find('boxWallLeft4').pos_x(),
-            x_max=wall.find('boxWallRight2').pos_x(),
+            x_min=-1000, 
+            x_max=1000,
             y_min=ypos_down,
             y_max=ypos_up,
-            group_name=str(i) if i != len(height_array)-1 else 'subsurface',
+            group_name=str(i),
             slot_name='layer'
         )
     
-    # Create section groups
-    for j in range(0, sec_num):
-        if first_section_length > 0:
-            if j == 0:
-                xpos_left = xpos0
-                xpos_right = xpos0 + first_section_length
-            else:
-                xpos_left = xpos_right
-                xpos_right = xpos_left + sec_interval
-        else:
-            xpos_left = xpos0 + j * sec_interval
-            xpos_right = xpos_left + sec_interval
-
-        print(f"Section {j}: xpos_left: {xpos_left}, xpos_right: {xpos_right}")
-        
-        # Assign balls to section groups
-        set_balls_group_in_area(
-            x_min=xpos_left,
-            x_max=xpos_right,
-            y_min=ypos0,
-            y_max=wall.find('boxWallTop3').pos_y(),
-            group_name=str(j),
-            slot_name='section'
-        )
     
-    # Handle remaining section if needed
-    if xpos_right < (wlx / 2 - itasca.fish.get('rdmax')):
-        xpos_left = xpos_right
-        xpos_right = xpos0 + wlx
-
-        print(f"Section {j + 1}: xpos_left: {xpos_left}, xpos_right: {xpos_right}")
-        
-        # Assign balls to extra section group
-        set_balls_group_in_area(
-            x_min=xpos_left,
-            x_max=xpos_right,
-            y_min=ypos0,
-            y_max=wall.find('boxWallTop3').pos_y(),
-            group_name=str(j + 1),
-            slot_name='section'
-        )
-
-        return sec_num + 1
-    
-    return sec_num
 
 # Call the function
 if __name__ == "__main__":
