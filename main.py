@@ -1,4 +1,3 @@
-
 import csv
 import itasca
 from itasca import ball, wall
@@ -21,6 +20,9 @@ thicknesses_in_meters = [
     7.00, 9.00, 6.50, 6.50, 7.50, 2.00, 9.00, 6.00, 3.00, 
     3.50, 5.50
 ]
+model_height=0
+for i in range(len(thicknesses_in_meters)):
+    model_height += thicknesses_in_meters[i]
 
 # *** Correction: Invert the rock layer list ***
 # Your table is from top to bottom, while modeling requires it from bottom to top. Therefore, the list order is reversed.
@@ -92,9 +94,9 @@ model_width = 250# Total model width
 
 # Automatically calculate the start and end sections for excavation
 # Section 0 is the left pillar, so excavation starts from section 1
-excavation_start_px = left_pillar_width
-excavation_end_px = model_width - right_pillar_width
-excavation_step = int(excavation_end_px/sec_interval)
+excavation_start_px = left_pillar_width-(model_width/2)
+excavation_end_px = (model_width/2) - right_pillar_width
+excavation_step = int((excavation_end_px-excavation_start_px)/sec_interval)
 
 step_solve_time = 3   # Define the solving time after each excavation step (seconds)
 
@@ -115,53 +117,88 @@ def run_simulation(**params):
 
     itasca.command("model new")
 
-    itasca.set_deterministic(deterministic_mode)
+    # Define checkpoint file paths in the current directory
+    yuya_sav_path = 'yuya.sav'
+    jiaojie_sav_path = 'jiaojie.sav'
 
-    # 1. Generate initial particle model (yuya-new.dat)
-    # Important: Please ensure the wall width in yuya-new.dat is 2.5m, and particle radii are 0.005-0.0075m
-    run_dat_file("yuya-new.dat")
-    itasca.command("model save 'yuya'")
+    # ==============================================================================
+    # Stage 1: Initial Particle Model Generation (Yuya)
+    # ==============================================================================
+    if os.path.exists(yuya_sav_path):
+        print(f"INFO: Found '{yuya_sav_path}'. Skipping initial particle generation.")
+        itasca.command(f"model restore '{yuya_sav_path}'")
+    else:
+        print(f"INFO: '{yuya_sav_path}' not found. Generating initial particle model.")
+        itasca.command("model new")
+        itasca.set_deterministic(deterministic_mode)
 
-    # Delete balls outside the walls
-    delete_balls_outside_area(
-        x_min=wall.find('boxWallLeft4').pos_x(),
-        x_max=wall.find('boxWallRight2').pos_x(),
-        y_min=wall.find('boxWallBottom1').pos_y(),
-        y_max=wall.find('boxWallTop3').pos_y()
-    )
+        # Generate initial particles using the DAT file
+        run_dat_file("yuya-new.dat")
+        itasca.command("model save 'yuya_temp'") # Temporary save before deleting stray balls
 
-    # 2. Stratify and section the model
-    itasca.command("model restore 'yuya'")
-    sec_num = fenceng(
-        layer_array=layer_array
-    )
-    itasca.command("model save 'fenceng'")
+        # Delete balls outside the defined walls
+        delete_balls_outside_area(
+            x_min=wall.find('boxWallLeft4').pos_x(),
+            x_max=wall.find('boxWallRight2').pos_x(),
+            y_min=wall.find('boxWallBottom1').pos_y(),
+            y_max=wall.find('boxWallTop3').pos_y()
+        )
+        
+        # Save the final state for this stage
+        itasca.command(f"model save '{yuya_sav_path}'")
+        print(f"SUCCESS: Initial model generated and saved to '{yuya_sav_path}'.")
 
-    # 3. Initial equilibrium
-    itasca.command("model restore 'fenceng'")
+    # ==============================================================================
+    # Stage 2: Stratification and Initial Equilibrium (Jiaojie)
+    # ==============================================================================
+    sec_num = 0  # Initialize section number
+    if os.path.exists(jiaojie_sav_path):
+        print(f"INFO: Found '{jiaojie_sav_path}'. Skipping stratification and equilibrium calculation.")
+        itasca.command(f"model restore '{jiaojie_sav_path}'")
 
-    wall_up_pos_y = wall.find('boxWallTop3').pos_y()
-    wlx, wly = compute_dimensions()
+        # Recover the number of sections from the loaded model's groups
+        sec_num = len(layer_array)
+        
+        if sec_num == 0:
+            raise ValueError("ERROR: Model loaded, but no section groups ('0', '1', ...) were found. Check the file or delete it to recalculate.")
+        print(f"INFO: Recovered {sec_num} sections from the loaded model.")
 
-    # Pass mechanical parameters to PFC
-    itasca.fish.set('pb_modules', 1e9)
-    itasca.fish.set('emod000', 15e9)
-    itasca.fish.set('ten_', 1.5e6)
-    itasca.fish.set('coh_', 1.5e6)
-    itasca.fish.set('fric', 0.1)
-    itasca.fish.set('kratio', 2.)
-    
-    itasca.fish.set('emod111', 1e9)
-    itasca.fish.set('ten_', 2e5)
-    itasca.fish.set('coh_', 2e5)
-    itasca.fish.set('dpnr', 0.5)
-    itasca.fish.set('dpnr', 0.0)
+    else:
+        print(f"INFO: '{jiaojie_sav_path}' not found. Performing stratification and equilibrium.")
+        
+        # Step 2a: Stratify and section the model
+        print("--> Step 2a: Stratifying model (fenceng)...")
+        # Ensure we start from the correct 'yuya' state
+        itasca.command(f"model restore '{yuya_sav_path}'") 
+        sec_num = fenceng(
+            layer_array=layer_array
+        )
+        itasca.command("model save 'fenceng_temp'") # Save the stratified state
 
+        # Step 2b: Calculate initial equilibrium
+        print("--> Step 2b: Calculating initial equilibrium (jiaojie)...")
+        itasca.command("model restore 'fenceng_temp'")
+        
+        # Pass mechanical properties to PFC via FISH variables
+        itasca.fish.set('pb_modules', 1e9)
+        itasca.fish.set('emod000', 15e9)
+        itasca.fish.set('ten_', 1.5e6)
+        itasca.fish.set('coh_', 1.5e6)
+        itasca.fish.set('fric', 0.1)
+        itasca.fish.set('kratio', 2.)
+        itasca.fish.set('emod111', 1e9)
+        itasca.fish.set('ten_', 2e5)
+        itasca.fish.set('coh_', 2e5)
+        itasca.fish.set('dpnr', 0.5)
+        itasca.fish.set('dpsr', 0.0)
 
-    # Run the equilibrium calculation script
-    run_dat_file("jiaojie.dat")
-    itasca.command(f"model save '{os.path.join(resu_path, 'sav', 'jiaojie')}'")
-
+        # Run the equilibrium calculation script
+        run_dat_file("jiaojie.dat")
+        
+        # Save the final equilibrium state to the current directory
+        itasca.command(f"model save '{jiaojie_sav_path}'")
+        print(f"SUCCESS: Equilibrium model calculated and saved to '{jiaojie_sav_path}'.")
+        # Get model properties (the model is already loaded or in the correct state)
     # 4. Simulate excavation
     itasca.command(f"model restore '{os.path.join(resu_path, 'sav', 'jiaojie')}'")
     
@@ -170,7 +207,11 @@ def run_simulation(**params):
 
     # Get the top balls for monitoring surface subsidence
     top_ball_pos = get_balls_max_pos(1)
-
+    wly = top_ball_pos
+    wlx = 250
+    wall_up_pos_y = 0
+    for i in range(len(layer_array)):
+        wall_up_pos_y += layer_array[i]
     # Check if the model is excessively expanding or contracting
     if top_ball_pos > wall_up_pos_y * 1.1:
         print(f"Warning: Model is expanding, please check parameters. Current top height {top_ball_pos}, model wall height: {wall_up_pos_y}")
@@ -180,16 +221,42 @@ def run_simulation(**params):
     rdmax = itasca.fish.get('rdmax')
     
     # Store the top balls of each section in a dictionary for subsequent displacement monitoring
-    ball_objects_dict = {}
-    for i in range(0, sec_num):
-        ball_objects_dict[str(i)] = get_balls_object_in_area(str(i), top_ball_pos-rdmax*1.5, top_ball_pos)
+    # +++ This is the CORRECTED block +++
+    # Define vertical monitoring sections based on x-coordinates to correctly measure surface subsidence profile.
+    # NOTE: PFC model coordinates are often centered around 0. We assume the model spans from -wlx/2 to +wlx/2.
+    model_x_min = -wlx / 2
+    model_x_max = wlx / 2
 
-    # Delete empty sections where no monitoring balls were found
-    empty_sections = [k for k, v in ball_objects_dict.items() if not v]
-    if empty_sections:
-        print(f"Warning: No monitoring balls found in the following sections, they will be ignored: {empty_sections}")
-        ball_objects_dict = {k: v for k, v in ball_objects_dict.items() if v}
-        sec_num = len(ball_objects_dict)
+    # Define the boundaries of each vertical monitoring section
+    section_boundaries = [model_x_min, model_x_min + left_pillar_width]
+    current_x = model_x_min + left_pillar_width
+    while current_x + sec_interval < model_x_max - right_pillar_width:
+        current_x += sec_interval
+        section_boundaries.append(current_x)
+    section_boundaries.append(model_x_max)
+
+    # Get all balls near the model's surface
+    y_search_min = top_ball_pos - rdmax * 2.0  # Use a slightly larger search depth
+    all_top_balls = [b for b in itasca.ball.list() if b.pos_y() >= y_search_min]
+
+    # Assign top balls to their respective vertical sections
+    ball_objects_dict = {}
+    for i in range(len(section_boundaries) - 1):
+        x_min = section_boundaries[i]
+        x_max = section_boundaries[i+1]
+        
+        # Find balls within the current vertical section's x-range
+        section_balls = [b for b in all_top_balls if x_min <= b.pos_x() < x_max]
+        
+        if section_balls: # Only add sections that actually contain monitoring balls
+            ball_objects_dict[str(len(ball_objects_dict))] = section_balls
+    
+    sec_num = len(ball_objects_dict)
+    if sec_num == 0:
+        raise RuntimeError("CRITICAL ERROR: Failed to define any surface monitoring sections. "
+                        "Check model generation, `wlx`, and pillar width parameters.")
+
+    print(f"INFO: Successfully defined {sec_num} vertical monitoring sections for surface subsidence.")
 
     y_disps_list = {}
     
@@ -201,16 +268,14 @@ def run_simulation(**params):
         
         # Delete balls within the specified coal layer and section
         command = "ball delete range group '11' pos-x "+str(excavation_pos)+' '+str(excavation_pos+sec_interval)
-        
+        itasca.command(command)
         # Solve/Calculate
         itasca.command(f"model solve cycle 10")
         global_timestep = itasca.timestep()
         step_interval_cycles = int(step_solve_time / global_timestep)
-        step_interval_cycles = 8000
-        if i < excavation_start_section + 2: # Use a stricter equilibrium criterion in the initial stages of excavation
-            itasca.command(f"model solve cycle {step_interval_cycles} or ratio-average 1e-5")
-        else:
-            itasca.command(f"model solve cycle {step_interval_cycles} or ratio-average 1e-5")
+        step_interval_cycles = 100
+
+        itasca.command(f"model solve cycle {step_interval_cycles} or ratio-average 1e-5")
         itasca.command(f"model save '{os.path.join(resu_path, 'sav', str(i))}'")
 
         # Get the average vertical displacement for each section and record it
@@ -223,11 +288,20 @@ def run_simulation(**params):
     # 5. Result Output
     # Plot surface subsidence curves for all excavation steps
     plt.figure(figsize=(10, 6))
+    # Calculate the center x-coordinate for each monitoring section for plotting.
+    # This will be used for both the plot and the CSV output.
+    monitoring_point_x_coords = []
+    for i in range(len(section_boundaries) - 1):
+        x_center = (section_boundaries[i] + section_boundaries[i+1]) / 2.0
+        monitoring_point_x_coords.append(x_center)
+
+    # Plot surface subsidence curves for all excavation steps
+    plt.figure(figsize=(12, 7))
     for excavation_pos, y_disps in y_disps_list.items():
-        x_positions = [first_section_length / 2 if first_section_length > 0 else sec_interval / 2] + \
-                      [first_section_length + k * sec_interval + sec_interval / 2 if first_section_length > 0 else k * sec_interval + sec_interval / 2 for k in range(0, sec_num - 2)] + \
-                      [int(wlx)]
-        plt.plot(x_positions, y_disps, label=f'Excavated to {excavation_pos:.2f} m')
+        # Ensure the data lengths match before plotting
+        if len(monitoring_point_x_coords) == len(y_disps):
+             plt.plot(monitoring_point_x_coords, y_disps, marker='o', linestyle='-', markersize=4, label=f'Excavated to {excavation_pos:.2f} m')
+
     plt.xlabel('Working Face Position (m)')
     plt.xlim(0, int(wlx))
     plt.ylabel('Vertical Displacement (m)')
@@ -267,5 +341,11 @@ if __name__ == "__main__":
         first_section_length=first_section_length,
         subsurface_level=subsurface_level,
         sec_interval=sec_interval,
-        excavation_layer_group=excavation_layer_group
+        excavation_layer_group=excavation_layer_group,
+        excavation_step = excavation_step,
+        excavation_start_px = excavation_start_px,
+        excavation_end_px = excavation_end_px,
+        wlx = model_width,
+        wly = model_height,
+        
     )

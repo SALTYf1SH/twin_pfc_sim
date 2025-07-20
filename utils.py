@@ -309,6 +309,8 @@ def fenceng(layer_array):
             group_name=str(i),
             slot_name='layer'
         )
+    sec_num = len(height_array)
+    return sec_num
     
     
 

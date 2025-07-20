@@ -1,14 +1,14 @@
 [ravg       =   3e-1   ]  ; ball average radius  [m]
 [rdev       =   0.5    ]  ; ball relative radius deviation [-]
-[dens       =   1.0e3  ]  ; ball density  [kg/m3]
+[dens       =   2.73e3  ]  ; ball density  [kg/m3]
 [poros      =   0.03   ]  ; initial porosity [-]
 
 fish define par
-    width=2.5
-    height=1.6
-    rdmax=0.015
-    rdmin=0.01
-    poro=0.005
+    width=250
+    height=160
+    rdmax=0.83
+    rdmin=0.5
+    poro=0.08
 end
 
 @par
@@ -24,7 +24,7 @@ contact cmat default model linear method deformability emod 100e6 kratio 1.5
 ; Set ball density according to ball numbers?
 ball attribute density [dens] damp 0.7
 
-model cycle 2000 calm 10
+model cycle 5000 calm 50
 model solve ratio-average 1e-5 or cycle 50000
 
 ; model save 'sample'
@@ -127,4 +127,4 @@ model cycle 1
 
 model solve ratio-average 1e-5 or cycle 50000
 
-; model save 'yuya'
+model save 'yuya'
