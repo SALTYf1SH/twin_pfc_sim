@@ -20,7 +20,7 @@ wall generate box [-width*0.5] [width*0.5] [-height*0.5] [height*0.5] expand 1.2
 ;ball distribute porosity @poros resolution @ravg radius [1.0-0.5*rdev] [1.0+0.5*rdev] box [-width*0.5] [width*0.5] [-height*0.5] [height*0.5]
 ball distribute porosity @poro radius @rdmin @rdmax box [-width*0.5] [width*0.5] [-height*0.5] [height*0.5]
 
-contact cmat default model linear method deformability emod 100e6 kratio 1.5
+contact cmat default model linearpbond method deformability emod 100e6 kratio 1.5
 ; Set ball density according to ball numbers?
 ball attribute density [dens] damp 0.7
 

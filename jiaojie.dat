@@ -25,7 +25,31 @@ contact property pb_rmul 1 pb_mcf 0.1 lin_mode 1 ...
                     range contact type 'ball-ball'
 contact method bond gap @rdmin range contact type 'ball-ball'
 
+ball group 'key-b' range pos-y 2.5 10
+contact group 'key-c' range pos-y 2.5 10
 
+[key_pb_modules=3e9]
+
+[key_emod000=45e9]
+
+[key_ten_=4.5e6]
+
+[key_coh_=4.5e6]
+
+[key_fric=0.3]
+
+[key_kratio=2.]
+
+contact method deform emod @key_emod000 kratio @key_kratio range group 'key-c'
+contact method pb_deform emod @key_pb_modules kratio @key_kratio range group 'key-c'
+contact property dp_nratio 0.5 dp_sratio 0.0 range group 'key-c'
+contact property fric @key_fric range group 'key-c'
+
+
+contact property pb_rmul 1 pb_mcf 0.1 lin_mode 1 ...
+                    pb_ten @key_ten_ pb_coh @key_coh_ pb_fa 38 ...
+                    range group 'key-c'
+contact method bond gap @rdmin range group 'key-c'
 
 def contact_group
      loop foreach local cp contact.list
@@ -42,13 +66,13 @@ end
 
 
 
-[pb_modules=1e9]
+[pb_modules=1e8]
 
-[emod111=1e9]
+[emod111=1e8]
 
-[ten1_=2e5]
+[ten1_=1e5]
 
-[coh1_=2e5]
+[coh1_=1e5]
 
 [fric1=0.1]
 

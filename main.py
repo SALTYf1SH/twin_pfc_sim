@@ -55,7 +55,7 @@ right_pillar_width = 45 # Width of the right coal pillar (m)
 first_section_length = left_pillar_width
 
 # Define the width of each excavation step
-sec_interval = 20  # Length of subsequent excavation blocks (m)
+sec_interval = 10  # Length of subsequent excavation blocks (m)
 
 # --- Mechanical Parameters (Important Note!) ---
 # The following parameters are example values and are not specific to your particular rock strata.
@@ -180,17 +180,17 @@ def run_simulation(**params):
         itasca.command("model restore 'fenceng_temp'")
         
         # Pass mechanical properties to PFC via FISH variables
-        itasca.fish.set('pb_modules', 1e9)
-        itasca.fish.set('emod000', 15e9)
-        itasca.fish.set('ten_', 1.5e6)
-        itasca.fish.set('coh_', 1.5e6)
-        itasca.fish.set('fric', 0.1)
-        itasca.fish.set('kratio', 2.)
-        itasca.fish.set('emod111', 1e9)
-        itasca.fish.set('ten_', 2e5)
-        itasca.fish.set('coh_', 2e5)
-        itasca.fish.set('dpnr', 0.5)
-        itasca.fish.set('dpsr', 0.0)
+        #itasca.fish.set('pb_modules', 1e9)
+        #itasca.fish.set('emod000', 15e9)
+        #itasca.fish.set('ten_', 1.5e6)
+        #itasca.fish.set('coh_', 1.5e6)
+        #itasca.fish.set('fric', 0.1)
+        #itasca.fish.set('kratio', 2.)
+        #itasca.fish.set('emod111', 1e9)
+        #itasca.fish.set('ten_', 2e5)
+        #itasca.fish.set('coh_', 2e5)
+        #itasca.fish.set('dpnr', 0.5)
+        #itasca.fish.set('dpsr', 0.0)
 
         # Run the equilibrium calculation script
         run_dat_file("jiaojie.dat")
@@ -200,7 +200,6 @@ def run_simulation(**params):
         print(f"SUCCESS: Equilibrium model calculated and saved to '{jiaojie_sav_path}'.")
         # Get model properties (the model is already loaded or in the correct state)
     # 4. Simulate excavation
-    itasca.command(f"model restore '{os.path.join(resu_path, 'sav', 'jiaojie')}'")
     
     # Reset ball attributes like displacement
     itasca.command("ball attribute velocity 0 spin 0 displacement 0")
