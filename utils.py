@@ -3,6 +3,8 @@ from itasca import ball, wall, ballarray
 import matplotlib.pyplot as plt
 import numpy as np
 import os
+import csv
+import traceback
 from scipy.interpolate import griddata
 from scipy.ndimage import convolve
 
@@ -231,23 +233,18 @@ def get_balls_y_displacement_matrix(window_size, model_width, model_height, inte
 # Example usage and plotting:
 def plot_y_displacement_heatmap(window_size, model_width, model_height, name, interpolate='nearest', resu_path=".", overlap=0.5):
     """
-    Create and plot the displacement heatmap.
-    
-    Args:
-        window_size (float): Size of the square sliding window
-        overlap (float): Overlap ratio between windows (0 to 1)
+    Create, plot, and save the displacement heatmap and resampled CSV data.
     """
     
-    # Create heatmap data
+    # --- Part 1: Original Heatmap Generation ---
     disp_matrix, x_centers, y_centers = get_balls_y_displacement_matrix(
         window_size, model_width, model_height, interpolate, overlap
     )
-    
-    # Create heatmap plot
+    extent = [x_centers.min(), x_centers.max(), y_centers.min(), y_centers.max()]
     plt.figure(figsize=(10, 8))
     plt.imshow(
         disp_matrix,
-        extent=[0, x_centers[-1]-x_centers[0], 0, y_centers[-1]-y_centers[0]],
+        extent=[-125, 125, -80, 80],
         origin='lower',
         aspect='equal',
         cmap='coolwarm_r'
@@ -259,13 +256,55 @@ def plot_y_displacement_heatmap(window_size, model_width, model_height, name, in
     plt.xlabel('X Position')
     plt.ylabel('Y Position')
     plt.title(f'Y Displacement Heatmap: {name}')
-    plt.savefig(os.path.join(resu_path, 'img', f'displacement_heatmap_{name}.png'), dpi=400, bbox_inches='tight')
+    img_path = os.path.join(resu_path, 'img', f'displacement_heatmap_{name}.png')
+    plt.savefig(img_path, dpi=400, bbox_inches='tight')
     plt.close()
+    print(f"INFO: Displacement heatmap saved to '{img_path}'")
 
-    # Also save the displacement matrix to a npz file
-    # Save under the "mat" folder under the result path
-    # Include the excavation position in the file name
-    np.savez(os.path.join(resu_path, 'mat', f'y_displacement_matrix_{name}.npz'), disp_matrix=disp_matrix, x_centers=x_centers, y_centers=y_centers)
+    npz_path = os.path.join(resu_path, 'mat', f'y_displacement_matrix_{name}.npz')
+    np.savez(npz_path, disp_matrix=disp_matrix, x_centers=x_centers, y_centers=y_centers)
+    print(f"INFO: Displacement matrix saved to '{npz_path}'")
+
+    print("INFO: Starting data resampling for CSV export based on the calculated heatmap data...")
+    try:
+
+        xx, yy = np.meshgrid(x_centers, y_centers)
+        
+
+        valid_mask = ~np.isnan(disp_matrix)
+        source_points = np.vstack((xx[valid_mask].ravel(), yy[valid_mask].ravel())).T
+        source_values = disp_matrix[valid_mask].ravel()
+
+        if source_points.shape[0] > 0:
+
+            num_points_x = 250
+            num_points_y = 160
+            
+            target_x = np.linspace(extent[0], extent[1], num_points_x)
+            target_y = np.linspace(extent[2], extent[3], num_points_y)
+            target_grid_x, target_grid_y = np.meshgrid(target_x, target_y)
+
+            print(f"INFO: Interpolating {len(source_values)} data points onto {num_points_x}x{num_points_y} grid...")
+            resampled_grid = griddata(source_points, source_values, (target_grid_x, target_grid_y), method='cubic')
+            print("INFO: Interpolation complete.")
+
+
+            csv_path = os.path.join(resu_path, 'csv', f'resampled_displacement_{name}.csv')
+            with open(csv_path, 'w', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow(['Y_Coordinate'] + list(target_x))
+
+                for i in range(num_points_y):
+                    row = [target_y[i]] + list(resampled_grid[i, :])
+                    writer.writerow(row)
+            print(f"SUCCESS: Resampled displacement data saved to '{csv_path}'")
+        else:
+            print("WARNING: No valid data points in disp_matrix to create a CSV file.")
+
+    except Exception as e:
+        print(f"ERROR: Failed to save resampled displacement CSV.")
+
+        traceback.print_exc()
 
 
 def fenceng(layer_array):
