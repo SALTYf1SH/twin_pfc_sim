@@ -15,6 +15,7 @@ import numpy as np
 import os
 from datetime import datetime
 import hashlib
+import collections
 
 # Attempt to import utility functions from utils.py
 # If this fails, ensure utils.py is in the same directory.
@@ -40,8 +41,34 @@ CONFIG = {
     # --- Model Geometry (units: meters) ---
     "MODEL_WIDTH": 250.0,
     "ROCK_LAYER_THICKNESSES": [
-        20.50, 3.00, 7.50, 30.00, 8.00, 7.50, 6.50, 6.00, 4.50, 7.00,
+        10.00,10.50, 3.00, 7.50, 10.00, 10.0, 10.0, 8.00, 7.50, 6.50, 6.00, 4.50, 7.00,
         9.00, 6.50, 6.50, 7.50, 2.00, 9.00, 6.00, 3.00, 3.50, 5.50
+    ],
+    "ROCK_TYPE": [
+        0,0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    ],
+    "ROCK_PARA": [
+        [
+        ('TYPE', 0),
+        ('NAME', 'type0'),
+        ('pb_modules', 1e9),
+        ('emod', 7.2e9),
+        ('pb_ten', 1.2e6),
+        ('pb_coh', 1.2e6),
+        ('fric', 0.28),
+        ('kratio', 2.0),
+        ],
+        [        
+        ('TYPE', 1),
+        ('NAME', 'type0'),
+        ('pb_modules', 1e9),
+        ('emod', 7.2e9),
+        ('pb_ten', 1.6e6),
+        ('pb_coh', 1.6e6),
+        ('fric', 0.28),
+        ('kratio', 2.0),
+        ],
     ],
 
     # --- Excavation Parameters (units: meters) ---
@@ -55,24 +82,24 @@ CONFIG = {
     "EQUILIBRIUM_PARAMS_LIST": [
         # Group 1
         ('pb_modules', 1e9),
-        ('emod000', 15e9),
-        ('ten_', 0.75e6),
-        ('coh_', 0.75e6),
-        ('fric', 0.1),
+        ('emod000', 7.2e9),
+        ('ten_', 1.8e6),
+        ('coh_', 1.8e6),
+        ('fric', 0.28),
         ('kratio', 2.0),
         # Group 2 (Key stratum)
-        ('key_pb_modules', 3e9),
-        ('key_emod000', 45e9),
-        ('key_ten_', 4.5e6),
-        ('key_coh_', 4.5e6),
+        ('key_pb_modules', 8.6e9),
+        ('key_emod000', 8.6e9),
+        ('key_ten_', 8.2e6),
+        ('key_coh_', 9.5e6),
         ('key_fric', 0.3),
         ('key_kratio', 2.0),
         # Group 3
-        ('pb_modules_1', 1e8),
-        ('emod111', 1e8),
-        ('ten1_', 1e5),
-        ('coh1_', 1e5),
-        ('fric1', 0.1),
+        ('pb_modules_1', 1.5e9),
+        ('emod111', 1.5e9),
+        ('ten1_', 2.5e6),
+        ('coh1_', 3.6e6),
+        ('fric1', 0.3),
         ('kratio', 2.0),
         # Group 4 (Damping)
         ('dpnr', 0.5),
@@ -80,7 +107,7 @@ CONFIG = {
     ],
 
     # --- Solver Settings ---
-    "SOLVE_CYCLES_PER_STEP": 8000, # Fixed number of cycles per excavation step
+    "SOLVE_CYCLES_PER_STEP": 13000, # Fixed number of cycles per excavation step
     "SOLVE_RATIO_TARGET": 1e-5,
 
     # --- File Paths (using os module) ---
@@ -210,6 +237,40 @@ def run_stage_two_equilibrium(config, layer_array, paths):
                 print(f"  -> Set FISH variable: {name} = {value}")
         
         run_dat_file(config["EQUILIBRIUM_DAT"])
+        
+        type_list = config["ROCK_TYPE"]
+        print(type_list)
+        para_list = config["ROCK_PARA"]
+        print(para_list)
+        for i in range(1,len(type_list)+1):
+            para_type = type_list[i-1]
+            paras = para_list[para_type]
+            for name, value in paras:
+                if (name != 'NAME') & (name != 'TYPE'):
+                    if (name == 'emod'):
+                        emod = value
+                        #command = "contact method deform "+name+" "+str(value)+" range group '"+ str(i)+"'"
+                        #itasca.command(command)
+                    if (name == 'pb_modules'):
+                        pb_modules = value
+                        #command = "contact method pb_deform emod "+str(value)+" range group '"+ str(i)+"'"
+                        #itasca.command(command)
+                    if (name == 'kratio'):
+                        kratio = value
+                        #command = "contact method deform "+name+" "+str(value)+" range group '"+ str(i)+"'"
+                        #itasca.command(command)
+                        #command = "contact method pb_deform "+name+" "+str(value)+" range group '"+ str(i)+"'"
+                        #itasca.command(command)
+                    if (name == 'fric') or (name == 'pb_ten') or (name == 'pb_coh'):
+                        fric = value
+                        command = "contact property "+name+" "+str(value)+" range group '"+ str(i)+"'"
+                        itasca.command(command)
+            command = "contact method deform emod "+str(emod)+" kratio "+str(kratio)+" "+"range group '"+ str(i)+"'"
+            itasca.command(command)
+            command = "contact method pb_deform emod "+str(pb_modules)+" kratio "+str(kratio)+" "+"range group '"+ str(i)+"'"
+            itasca.command(command)
+
+                    
         itasca.command(f"model save '{save_file}'")
         print(f"SUCCESS: Equilibrium model saved to '{save_file}'.")
 
@@ -253,6 +314,148 @@ def setup_monitoring_points(config, model_height):
     print(f"INFO: Successfully defined {len(ball_objects_dict)} vertical monitoring sections.")
     return ball_objects_dict, section_boundaries, top_y_ref
 
+def calculate_fragment_properties(balls):
+    """
+    Calculates geometric properties for a single fragment given its constituent balls.
+    """
+    if not balls:
+        return {}
+
+    num_balls = len(balls)
+    
+    # Calculate area-weighted centroid
+    radii = np.array([b.radius() for b in balls])
+    areas = np.pi * radii**2
+    total_area = np.sum(areas)
+    
+    if total_area == 0:
+        return {
+            "num_balls": num_balls,
+            "area": 0,
+            "centroid_x": 0,
+            "centroid_y": 0,
+            "orientation": 0.0
+        }
+
+    positions_x = np.array([b.pos_x() for b in balls])
+    positions_y = np.array([b.pos_y() for b in balls])
+    
+    centroid_x = np.sum(positions_x * areas) / total_area
+    centroid_y = np.sum(positions_y * areas) / total_area
+
+    # Placeholder for orientation calculation
+    orientation = 0.0
+
+    return {
+        "num_balls": num_balls,
+        "area": total_area,
+        "centroid_x": centroid_x,
+        "centroid_y": centroid_y,
+        "orientation": orientation
+    }
+
+def process_fragment_evolution(step_number, paths, previous_ball_to_fragment_map, config):
+    """
+    Analyzes fragment evolution, saves properties and genealogy, and creates a plot.
+    Returns the ball-to-fragment map for the current step.
+    """
+    print(f"    -> Processing fragment evolution for step {step_number}...")
+
+    # 1. Group balls by fragment ID
+    fragments = {}
+    all_balls = list(itasca.ball.list())
+    if not all_balls:
+        print("    -> WARNING: No balls in model to process.")
+        return {}
+
+    for ball in all_balls:
+        frag_id = ball.fragment()
+        if frag_id not in fragments:
+            fragments[frag_id] = []
+        fragments[frag_id].append(ball)
+
+    # 2. Create the ball-to-fragment map for the current step
+    current_ball_to_fragment_map = {b.id(): b.fragment() for b in all_balls}
+
+    # 3. Analyze each fragment to find parent and calculate properties
+    all_fragments_properties = []
+    for frag_id, balls in fragments.items():
+        parent_id = -1
+        if previous_ball_to_fragment_map:
+            parent_ids_of_balls = [previous_ball_to_fragment_map.get(b.id(), -1) for b in balls]
+            if parent_ids_of_balls:
+                parent_id = collections.Counter(parent_ids_of_balls).most_common(1)[0][0]
+
+        properties = calculate_fragment_properties(balls)
+        properties['fragment_id'] = frag_id
+        properties['parent_id'] = parent_id
+        all_fragments_properties.append(properties)
+
+    # 4. Save the detailed fragment properties to a new CSV
+    props_csv_file = os.path.join(paths["csv"], f"fragments_properties_step_{step_number}.csv")
+    try:
+        with open(props_csv_file, 'w', newline='') as f:
+            fieldnames = ["fragment_id", "parent_id", "num_balls", "area", "centroid_x", "centroid_y", "orientation"]
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(all_fragments_properties)
+        print(f"    -> Fragment properties saved to '{props_csv_file}'")
+    except IOError as e:
+        print(f"    -> ERROR: Could not write fragment properties CSV. {e}")
+
+    # 5. Create visualization with boundary fragments in grey
+    plot_file = os.path.join(paths["img"], f"fragments_step_{step_number}.png")
+
+    # a. Identify boundary fragments
+    model_width = config["MODEL_WIDTH"]
+    x_min, x_max = -model_width / 2.0, model_width / 2.0
+    boundary_threshold = 20.0 # User-defined fixed threshold of 20m
+    boundary_fragment_ids = set()
+    for ball in all_balls:
+        if ball.pos_x() < x_min + boundary_threshold or ball.pos_x() > x_max - boundary_threshold:
+            boundary_fragment_ids.add(ball.fragment())
+
+    # b. Assign colors
+    from matplotlib.colors import to_rgba
+    internal_frag_ids = sorted([fid for fid in fragments.keys() if fid not in boundary_fragment_ids])
+    cmap = plt.get_cmap('tab20')
+
+    # Pre-convert all colors to RGBA tuples to ensure the list is uniform
+    color_map = {fid: cmap(i % 20) for i, fid in enumerate(internal_frag_ids)}
+    grey_color = to_rgba('0.75')
+    black_color = to_rgba('black')
+
+    ball_colors = []
+    for ball in all_balls:
+        frag_id = ball.fragment()
+        if frag_id in boundary_fragment_ids:
+            ball_colors.append(grey_color)
+        else:
+            ball_colors.append(color_map.get(frag_id, black_color))
+
+    # c. Plotting
+    plt.figure(figsize=(15, 12))
+    plt.scatter([b.pos_x() for b in all_balls], 
+                [b.pos_y() for b in all_balls], 
+                c=ball_colors, 
+                s=1, 
+                alpha=0.8)
+
+    plt.xlabel("Horizontal Position (m)")
+    plt.ylabel("Vertical Position (m)")
+    plt.title(f"Fragment Visualization for Step {step_number} (Boundary Fragments in Grey)")
+    plt.axis('equal')
+    plt.grid(True, linestyle='--', alpha=0.5)
+
+    try:
+        plt.savefig(plot_file, dpi=300, bbox_inches='tight')
+        print(f"    -> Fragment visualization plot saved to '{plot_file}'")
+    except IOError as e:
+        print(f"    -> ERROR: Could not save fragment plot. {e}")
+    plt.close()
+
+    return current_ball_to_fragment_map
+
 def run_excavation_simulation(config, paths, ball_objects_dict, section_boundaries, model_top_y):
     """Runs the main excavation loop, solving and recording data at each step."""
     model_width = config["MODEL_WIDTH"]
@@ -262,6 +465,7 @@ def run_excavation_simulation(config, paths, ball_objects_dict, section_boundari
     num_steps = int((end_x - start_x) / step_width)
     
     y_disps_list = {}
+    previous_ball_to_fragment_map = {} # Initialize for genealogy tracking
     
     print(f"\n--- Starting Excavation Simulation ({num_steps} steps) ---")
 
@@ -270,25 +474,26 @@ def run_excavation_simulation(config, paths, ball_objects_dict, section_boundari
         excavation_end = excavation_pos + step_width
         print(f"--> Step {i+1}/{num_steps}: Excavating from {excavation_pos:.2f}m to {excavation_end:.2f}m...")
         
-        # Delete balls in the target layer and section
         cmd = (f"ball delete range group '{config['EXCAVATION_LAYER_GROUP']}' "
                f"pos-x {excavation_pos} {excavation_end}")
         itasca.command(cmd)
         
-        # Solve to new equilibrium with a fixed number of cycles
-        step_interval_cycles = config["SOLVE_CYCLES_PER_STEP"]
-        itasca.command(f"model solve cycle {step_interval_cycles} or ratio-average {config['SOLVE_RATIO_TARGET']}")
+        itasca.command(f"model solve cycle {config['SOLVE_CYCLES_PER_STEP']} or ratio-average {config['SOLVE_RATIO_TARGET']}")
         
-        # Save model state for this step
         save_file = os.path.join(paths["sav"], f"step_{i}.sav")
         itasca.command(f"model save '{save_file}'")
         
-        # Record average vertical displacement for each monitoring section
+        # --- START: New Fragment Evolution Analysis ---
+        print("    -> Computing fragments...")
+        itasca.command("fragment compute")
+        current_map = process_fragment_evolution(i + 1, paths, previous_ball_to_fragment_map, config)
+        previous_ball_to_fragment_map = current_map
+        # --- END: New Fragment Evolution Analysis ---
+        
         sec_num = len(ball_objects_dict)
         y_disps = [get_avg_ball_y_disp(ball_objects_dict[str(k)]) for k in range(sec_num)]
         y_disps_list[excavation_pos] = y_disps
         
-        # Plot and save displacement heatmap
         model_plot_height = 160
         rdmax = itasca.fish.get('rdmax')
         plot_y_displacement_heatmap(
@@ -302,6 +507,13 @@ def run_excavation_simulation(config, paths, ball_objects_dict, section_boundari
     
     print("--- Excavation Simulation Complete ---")
     return y_disps_list
+
+
+
+
+
+
+
 
 def save_results(config, paths, y_disps_list, section_boundaries):
     """Plots surface subsidence curves and saves all displacement data to a CSV file."""

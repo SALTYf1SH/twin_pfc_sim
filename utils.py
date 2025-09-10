@@ -348,6 +348,7 @@ def fenceng(layer_array):
             group_name=str(i),
             slot_name='layer'
         )
+        command = "ball group 'layer"+str(i)+"' slot '00' range pos-y "+str(ypos_down)+" "+str(ypos_up)
     sec_num = len(height_array)
     return sec_num
     
