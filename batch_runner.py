@@ -106,48 +106,50 @@ def run_batch_simulations():
             failed_sims += 1
             continue
 
-        # d. Construct and run the PFC command
-        # We provide the absolute path to the script to be safe
-        script_to_call_abs_path = os.path.join(PROJECT_WORKING_DIR, PFC_CALL_SCRIPT)
+        # d. Construct a temporary .dat file to ensure correct working directory in PFC
+        # Using forward slashes in the content for compatibility with PFC's internal parser.
+        runner_dat_content = f'''
+program directory "{PROJECT_WORKING_DIR.replace(os.path.sep, '/')}"
+program call "{PFC_CALL_SCRIPT}"
+'''
+        runner_dat_path = os.path.join(PROJECT_WORKING_DIR, "temp_runner.dat")
+        with open(runner_dat_path, "w") as f:
+            f.write(runner_dat_content)
+
+        # e. Construct and run the PFC command to call the .dat file
+        # The path to the .dat file needs quotes for PFC.
         command = [
             PFC_EXECUTABLE_PATH,
             "call",
-            script_to_call_abs_path
+            f'"{runner_dat_path}"'
         ]
 
-        print(f"INFO: Executing PFC...")
-        print(f"  -> Command: {' '.join(command)}")
-        print(f"  -> Working Directory: {PROJECT_WORKING_DIR}")
+        print(f"INFO: Executing PFC via temporary runner file...")
+        # We join with spaces, but the actual command is passed as a list to avoid shell injection issues.
+        # The printed command is for user readability.
+        print(f"  -> Command: {PFC_EXECUTABLE_PATH} call \"{runner_dat_path}\"\"")
+        print(f"  -> Working Directory (for PFC): {PROJECT_WORKING_DIR}")
 
         try:
-            # The key is to set the `cwd` (current working directory) argument.
-            # This tells the subprocess to run as if it were started in that folder.
+            # For debugging, we see PFC's output in real-time.
+            # We use shell=True on Windows to correctly handle commands with quoted arguments.
             process = subprocess.run(
-                command,
+                ' '.join(command), # Join the command list into a single string for shell=True
                 cwd=PROJECT_WORKING_DIR,
-                check=True,        # Raises an exception if the command returns a non-zero exit code
-                capture_output=True, # Captures stdout and stderr
-                text=True          # Decodes stdout/stderr as text
+                check=True,
+                shell=True
             )
             
             end_time = time.time()
             duration = end_time - start_time
             print(f"SUCCESS: Simulation completed in {duration:.2f} seconds.")
-            # Optional: Print stdout for debugging if needed
-            # print("--- PFC Output ---")
-            # print(process.stdout)
-            # print("------------------")
             completed_sims += 1
 
         except subprocess.CalledProcessError as e:
-            end_time = time.time()
+            end_time = time.time()            
             duration = end_time - start_time
             print(f"ERROR: PFC simulation failed after {duration:.2f} seconds with exit code {e.returncode}.")
-            print("--- PFC Standard Output ---")
-            print(e.stdout)
-            print("--- PFC Standard Error ---")
-            print(e.stderr)
-            print("--------------------------")
+            print("INFO: Check the console output above for PFC error messages.")
             failed_sims += 1
         except FileNotFoundError:
             print(f"FATAL ERROR: Could not execute command. Is the path '{PFC_EXECUTABLE_PATH}' correct?")
