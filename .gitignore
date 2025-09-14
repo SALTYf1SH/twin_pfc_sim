@@ -9,6 +9,8 @@ images/
 .*
 *.txt
 *.dmp
+*.json
+*.sav
 *.sav
 __pycache__/
 experiments/
