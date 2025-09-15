@@ -12,5 +12,6 @@ images/
 *.json
 *.sav
 *.sav
+*.npz
 __pycache__/
 experiments/

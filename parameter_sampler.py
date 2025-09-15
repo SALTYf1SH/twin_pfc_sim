@@ -18,8 +18,8 @@ import copy
 # --- Configuration ---
 BASE_CONFIG_FILE = "config_sd.json"
 OUTPUT_DIR = "configs_to_run"
-NUM_SAMPLES = 50  # Number of configuration files to generate
-SAMPLING_RANGE_PERCENTAGE = 0.20  # e.g., 0.20 means +/- 20% from the base value
+NUM_SAMPLES = 200  # Number of configuration files to generate
+SAMPLING_RANGE_PERCENTAGE = 0.50  # e.g., 0.50 means +/- 50% from the base value
 
 # --- Parameter Space Definition ---
 # Define the parameters to be varied.
@@ -29,19 +29,22 @@ SAMPLING_RANGE_PERCENTAGE = 0.20  # e.g., 0.20 means +/- 20% from the base value
 
 # Base values will be loaded dynamically from the config file.
 PARAMETERS_TO_VARY = {
-    # Sandstone (TYPE 0) emod and pb_coh
+    # Sandstone (TYPE 0) properties
     "sandstone_emod": (("ROCK_PARA", 0, 3, 1), None),
+    "sandstone_pb_ten": (("ROCK_PARA", 0, 4, 1), None), # New: Tensile Strength
     "sandstone_pb_coh": (("ROCK_PARA", 0, 5, 1), None),
+    "sandstone_kratio": (("ROCK_PARA", 0, 7, 1), None), # New: Stiffness Ratio
 
-    # Mudstone/Siltstone (TYPE 2) emod and pb_coh
+    # Mudstone/Siltstone (TYPE 2) properties
     "mudstone_emod": (("ROCK_PARA", 2, 3, 1), None),
+    "mudstone_pb_ten": (("ROCK_PARA", 2, 4, 1), None),  # New: Tensile Strength
     "mudstone_pb_coh": (("ROCK_PARA", 2, 5, 1), None),
+    "mudstone_kratio": (("ROCK_PARA", 2, 7, 1), None),  # New: Stiffness Ratio
 
-    # Key Stratum Thicknesses (indices are 0-based)
-    # Layer #10 (Main KS) is at index 9
+    # Key Stratum Thicknesses
     "main_ks_thickness": (("ROCK_LAYER_THICKNESSES", 9), None),
-    # Layer #14 (Primary KS) is at index 13
     "primary_ks_thickness": (("ROCK_LAYER_THICKNESSES", 13), None),
+    "coal_seam_thickness": (("ROCK_LAYER_THICKNESSES", 2), None), # New: Mined Coal Seam Thickness (Layer #3)
 }
 
 def get_value_from_path(config_dict, path):

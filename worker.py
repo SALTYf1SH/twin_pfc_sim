@@ -109,6 +109,7 @@ def run_simulation(job_config_path):
     runner_dat_content = f'''
 program directory "{PROJECT_WORKING_DIR.replace(os.path.sep, '/')}"
 program call "{PFC_CALL_SCRIPT}"
+program exit
 '''
     runner_dat_path = os.path.join(PROJECT_WORKING_DIR, f"temp_runner_{WORKER_ID}.dat")
     with open(runner_dat_path, "w") as f:

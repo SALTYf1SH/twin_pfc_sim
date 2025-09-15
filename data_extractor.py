@@ -18,6 +18,7 @@ import json
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
+from scipy.stats import gaussian_kde
 
 # --- Configuration ---
 
@@ -38,17 +39,6 @@ def get_simulation_parameters(sim_folder_path):
     Reads the key varying parameters from the simulation's parameter file.
     This forms the first part of our input vector X.
     """
-    params_to_extract = [
-        "sandstone_emod", "sandstone_pb_coh",
-        "mudstone_emod", "mudstone_pb_coh",
-        "main_ks_thickness", "primary_ks_thickness"
-    ]
-    
-    # We need to find the original config file to get the exact values
-    # The parameter_sampler script saves them in a unique name.
-    # We can also read the generated simulation_parameters.txt
-    
-    # Let's find the original config file by its unique name pattern
     config_path = os.path.join(sim_folder_path, "simulation_parameters.txt")
     if not os.path.exists(config_path):
         raise FileNotFoundError(f"Could not find 'simulation_parameters.txt' in {sim_folder_path}")
@@ -59,35 +49,44 @@ def get_simulation_parameters(sim_folder_path):
         json_str = content[content.find('{'):]
         config = json.loads(json_str)
 
-    # Now extract the specific values we varied
+    # Extract all 11 varied parameters to form the feature vector
     param_vector = []
-    # Sandstone (TYPE 0) emod and pb_coh
-    param_vector.append(config["ROCK_PARA"][0][3][1]) # emod
-    param_vector.append(config["ROCK_PARA"][0][5][1]) # pb_coh
-    # Mudstone/Siltstone (TYPE 2) emod and pb_coh
-    param_vector.append(config["ROCK_PARA"][2][3][1]) # emod
-    param_vector.append(config["ROCK_PARA"][2][5][1]) # pb_coh
-    # Key Stratum Thicknesses (indices are 0-based)
-    param_vector.append(config["ROCK_LAYER_THICKNESSES"][9])  # Layer #10 (Main KS)
-    param_vector.append(config["ROCK_LAYER_THICKNESSES"][13]) # Layer #14 (Primary KS)
+    
+    # Sandstone (TYPE 0) properties
+    param_vector.append(config["ROCK_PARA"][0][3][1]) # sandstone_emod
+    param_vector.append(config["ROCK_PARA"][0][4][1]) # sandstone_pb_ten
+    param_vector.append(config["ROCK_PARA"][0][5][1]) # sandstone_pb_coh
+    param_vector.append(config["ROCK_PARA"][0][7][1]) # sandstone_kratio
+
+    # Mudstone/Siltstone (TYPE 2) properties
+    param_vector.append(config["ROCK_PARA"][2][3][1]) # mudstone_emod
+    param_vector.append(config["ROCK_PARA"][2][4][1]) # mudstone_pb_ten
+    param_vector.append(config["ROCK_PARA"][2][5][1]) # mudstone_pb_coh
+    param_vector.append(config["ROCK_PARA"][2][7][1]) # mudstone_kratio
+
+    # Key Stratum Thicknesses
+    param_vector.append(config["ROCK_LAYER_THICKNESSES"][9])  # main_ks_thickness
+    param_vector.append(config["ROCK_LAYER_THICKNESSES"][13]) # primary_ks_thickness
+    param_vector.append(config["ROCK_LAYER_THICKNESSES"][2])  # coal_seam_thickness
     
     return np.array(param_vector, dtype=np.float32)
 
-
 def create_fracture_grid(fracture_csv_path, model_width, model_height):
     """
-    Reads fracture data and converts it into a 2D grid representing fracture intensity.
-    The intensity is based on the sum of apertures in each grid cell.
+    Reads fracture data and uses Kernel Density Estimation (KDE) to create
+    a smooth 2D grid representing fracture intensity. The aperture of each
+    fracture is used as the weight for the KDE.
     """
-    grid = np.zeros(GRID_RESOLUTION, dtype=np.float32)
-    
+    # Define the grid to evaluate the KDE on
+    grid_x, grid_y = np.mgrid[0:GRID_RESOLUTION[0], 0:GRID_RESOLUTION[1]]
+
     if not os.path.exists(fracture_csv_path):
-        # It's possible a step has no fractures, return an empty grid
-        return grid
+        return np.zeros(GRID_RESOLUTION, dtype=np.float32)
 
     fracture_df = pd.read_csv(fracture_csv_path)
-    if fracture_df.empty:
-        return grid
+    # KDE requires at least 2 points to estimate density
+    if fracture_df.empty or len(fracture_df) < 2:
+        return np.zeros(GRID_RESOLUTION, dtype=np.float32)
 
     # Define the spatial boundaries of the model
     x_min, x_max = -model_width / 2.0, model_width / 2.0
@@ -98,22 +97,32 @@ def create_fracture_grid(fracture_csv_path, model_width, model_height):
     y_coords = fracture_df['pos_y'].values
     apertures = fracture_df['aperture'].values
 
-    # Calculate grid cell indices for each fracture
-    # np.floor is used to handle points exactly on the max boundary
-    x_indices = np.floor((x_coords - x_min) / (x_max - x_min) * GRID_RESOLUTION[0]).astype(int)
-    y_indices = np.floor((y_coords - y_min) / (y_max - y_min) * GRID_RESOLUTION[1]).astype(int)
+    # Normalize coordinates to the grid index space [0, GRID_RESOLUTION]
+    # This is crucial for evaluating the KDE on the grid later
+    norm_x = (x_coords - x_min) / (x_max - x_min) * GRID_RESOLUTION[0]
+    norm_y = (y_coords - y_min) / (y_max - y_min) * GRID_RESOLUTION[1]
+    
+    # Combine into a (2, N) dataset as required by gaussian_kde
+    dataset = np.vstack([norm_x, norm_y])
+    
+    # Perform weighted Kernel Density Estimation
+    try:
+        kde = gaussian_kde(dataset, weights=apertures)
+        
+        # Evaluate the KDE on the grid positions
+        positions = np.vstack([grid_x.ravel(), grid_y.ravel()])
+        grid = np.reshape(kde(positions).T, GRID_RESOLUTION)
 
-    # Clip indices to be within the valid range [0, GRID_RESOLUTION-1]
-    x_indices = np.clip(x_indices, 0, GRID_RESOLUTION[0] - 1)
-    y_indices = np.clip(y_indices, 0, GRID_RESOLUTION[1] - 1)
+    except (np.linalg.LinAlgError, ValueError) as e:
+        # This can happen if all points are co-linear or there are not enough points
+        print(f"  - WARNING: KDE failed for {os.path.basename(fracture_csv_path)}. Reason: {e}. Returning zero grid.")
+        return np.zeros(GRID_RESOLUTION, dtype=np.float32)
 
-    # Add apertures to the corresponding grid cells
-    # np.add.at is a special function for unbuffered in-place addition,
-    # which correctly handles multiple fractures falling into the same cell.
-    np.add.at(grid, (y_indices, x_indices), apertures)
+    # Normalize the resulting grid to a [0, 1] range for consistency
+    if grid.max() > 0:
+        grid = grid / grid.max()
 
-    return grid
-
+    return grid.astype(np.float32)
 
 def process_simulation_folder(sim_folder_path, output_dir):
     """
