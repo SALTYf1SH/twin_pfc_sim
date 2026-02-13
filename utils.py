@@ -94,7 +94,31 @@ def get_balls_object_in_area(group_name, y_min, y_max):
 def get_avg_ball_y_disp(ball_objects):
     y_disps = [ball_obj.disp_y() for ball_obj in ball_objects]
     return np.mean(y_disps)
-
+def get_avg_ball_yy_stress(balls):
+    """
+    计算给定球体列表中所有球体的平均YY方向应力。
+    
+    Args:
+        balls (list): itasca.ball 对象的列表。
+        
+    Returns:
+        float: 平均垂直应力值。
+    """
+    if not balls:
+        return 0.0
+    
+    # 获取每个球体的应力张量，并提取其YY分量
+    try:
+        # --- 这是修改后的行 ---
+        stress_yy_values = [b.stress()[1, 1] for b in balls]
+        # --- 修改结束 ---
+        
+        # 计算并返回平均值
+        return np.mean(stress_yy_values)
+    except Exception as e:
+        print(f"ERROR in get_avg_ball_yy_stress: {e}. Check array indexing? Returning 0.0")
+        traceback.print_exc() # 打印详细的堆栈跟踪
+        return 0.0
 def interpolate_nan_values(matrix, method='cubic'):
     """
     Interpolate NaN values in a matrix using the average of neighboring cells.

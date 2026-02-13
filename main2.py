@@ -12,8 +12,8 @@ import itasca
 from itasca import ball, wall
 import matplotlib.pyplot as plt
 import numpy as np
-import os
-from datetime import datetime
+import os                                                                                                                               
+from datetime import datetime                                                                                                                                                                                                                                                                                                                                                                                                                      
 import hashlib
 import collections
 

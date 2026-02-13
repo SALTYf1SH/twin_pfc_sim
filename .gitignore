@@ -13,5 +13,11 @@ images/
 *.sav
 *.sav
 *.npz
+*.svg
+*.pth
+*.pt
+*.zip
+*.sav
+*.dat
 __pycache__/
 experiments/

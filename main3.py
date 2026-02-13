@@ -22,7 +22,8 @@ import traceback
 # If this fails, ensure utils.py is in the same directory.
 try:
     from utils import (run_dat_file, delete_balls_outside_area, fenceng,
-                       get_avg_ball_y_disp, plot_y_displacement_heatmap)
+                       get_avg_ball_y_disp, get_avg_ball_yy_stress, # <-- _MODIFIED_ Added get_avg_ball_yy_stress
+                       plot_y_displacement_heatmap)
 except ImportError:
     print("FATAL ERROR: Could not import from 'utils.py'.")
     print("Please ensure 'utils.py' is in the same directory as this script.")
@@ -221,11 +222,53 @@ def setup_monitoring_points(config, model_height):
         if section_balls:
             ball_objects_dict[str(i)] = section_balls
             
-    if not ball_objects_dict:
-        raise RuntimeError("CRITICAL ERROR: Failed to define any surface monitoring sections.")
+    if not ball_objects_dict and len(all_top_balls) > 0:
+         print("WARNING: Monitoring sections are defined, but no top balls fall within them.")
+    elif not all_top_balls:
+         print("WARNING: No top balls found for surface monitoring.")
                            
     print(f"INFO: Successfully defined {len(ball_objects_dict)} vertical monitoring sections.")
     return ball_objects_dict, section_boundaries, top_y_ref
+
+# --- _ADDED_ ---
+def setup_stress_monitoring_sections(config, section_boundaries):
+    """Defines horizontal monitoring sections in the coal seam floor."""
+    stress_objects_dict = {}
+    try:
+        # 1. Identify the floor layer group
+        excavation_group_str = config['EXCAVATION_LAYER_GROUP']
+        floor_group_int = int(excavation_group_str) - 1
+        if floor_group_int <= 0:
+            raise ValueError(f"Excavation group '{excavation_group_str}' is invalid, no floor layer below it.")
+        floor_group_str = str(floor_group_int)
+        print(f"INFO: Setting up stress monitoring for floor layer: group '{floor_group_str}'")
+
+        # 2. Get all balls in this layer group
+        all_floor_balls = [
+            b for b in ball.list() 
+            if b.in_group(floor_group_str, 'layer')
+        ]
+        
+        if not all_floor_balls:
+             print(f"WARNING: No balls found in floor layer group '{floor_group_str}'. Stress monitoring will be empty.")
+             return {}
+
+        # 3. Assign balls to their respective horizontal sections
+        for i in range(len(section_boundaries) - 1):
+            x_min, x_max = section_boundaries[i], section_boundaries[i+1]
+            section_balls = [b for b in all_floor_balls if x_min <= b.pos_x() < x_max]
+            if section_balls:
+                stress_objects_dict[str(i)] = section_balls
+        
+        print(f"INFO: Successfully defined {len(stress_objects_dict)} horizontal stress monitoring sections in the floor.")
+
+    except Exception as e:
+        print(f"CRITICAL ERROR in setup_stress_monitoring_sections: {e}")
+        traceback.print_exc()
+        print("WARNING: Floor stress monitoring setup failed. Will skip stress collection.")
+    
+    return stress_objects_dict
+# --- _END_ADDED_ ---
 
 def calculate_fragment_properties(balls):
     """Calculates geometric properties for a single fragment given its constituent balls."""
@@ -280,7 +323,79 @@ def process_fragment_evolution(step_number, paths, previous_ball_to_fragment_map
     except IOError as e:
         print(f"    -> ERROR: Could not write fragment properties CSV. {e}")
     
-    # Plotting code remains the same...
+    # --- Save detailed ball data for the current step ---
+    balls_data = []
+    for ball in all_balls:
+        balls_data.append({
+            'x': ball.pos_x(),
+            'y': ball.pos_y(),
+            'radius': ball.radius(),
+            'fragment_id': ball.fragment()
+        })
+    
+    if balls_data:
+        # Use the built-in csv module to avoid external dependencies in PFC
+        balls_csv_file = os.path.join(paths["csv"], f"fragments_balls_step_{step_number}.csv")
+        try:
+            headers = balls_data[0].keys()
+            with open(balls_csv_file, 'w', newline='') as output_file:
+                dict_writer = csv.DictWriter(output_file, fieldnames=headers)
+                dict_writer.writeheader()
+                dict_writer.writerows(balls_data)
+            print(f"    -> Ball data saved to '{balls_csv_file}'")
+        except (IOError, IndexError) as e:
+            print(f"    -> ERROR: Could not write ball data CSV. {e}")
+
+    # 5. Create visualization with boundary fragments in grey
+    plot_file = os.path.join(paths["img"], f"fragments_step_{step_number}.png")
+
+    # a. Identify boundary fragments
+    model_width = config["MODEL_WIDTH"]
+    x_min, x_max = -model_width / 2.0, model_width / 2.0
+    boundary_threshold = 20.0 # User-defined fixed threshold of 20m
+    boundary_fragment_ids = set()
+    for ball in all_balls:
+        if ball.pos_x() < x_min + boundary_threshold or ball.pos_x() > x_max - boundary_threshold:
+            boundary_fragment_ids.add(ball.fragment())
+
+    # b. Assign colors
+    from matplotlib.colors import to_rgba
+    internal_frag_ids = sorted([fid for fid in fragments.keys() if fid not in boundary_fragment_ids])
+    cmap = plt.get_cmap('tab20')
+
+    # Pre-convert all colors to RGBA tuples to ensure the list is uniform
+    color_map = {fid: cmap(i % 20) for i, fid in enumerate(internal_frag_ids)}
+    grey_color = to_rgba('0.75')
+    black_color = to_rgba('black')
+
+    ball_colors = []
+    for ball in all_balls:
+        frag_id = ball.fragment()
+        if frag_id in boundary_fragment_ids:
+            ball_colors.append(grey_color)
+        else:
+            ball_colors.append(color_map.get(frag_id, black_color))
+
+    # c. Plotting
+    plt.figure(figsize=(15, 12))
+    plt.scatter([b.pos_x() for b in all_balls], 
+                [b.pos_y() for b in all_balls], 
+                c=ball_colors, 
+                s=1, 
+                alpha=0.8)
+
+    plt.xlabel("Horizontal Position (m)")
+    plt.ylabel("Vertical Position (m)")
+    plt.title(f"Fragment Visualization for Step {step_number} (Boundary Fragments in Grey)")
+    plt.axis('equal')
+    plt.grid(True, linestyle='--', alpha=0.5)
+
+    try:
+        plt.savefig(plot_file, dpi=300, bbox_inches='tight')
+        print(f"    -> Fragment visualization plot saved to '{plot_file}'")
+    except IOError as e:
+        print(f"    -> ERROR: Could not save fragment plot. {e}")
+    plt.close()
 
     return current_ball_to_fragment_map
 
@@ -321,7 +436,7 @@ def process_fracture_data(step_number, paths):
         print(f"    -> ERROR: An unexpected error occurred while processing fracture data: {e}")
 
 
-def run_excavation_simulation(config, paths, ball_objects_dict, section_boundaries, model_top_y):
+def run_excavation_simulation(config, paths, ball_objects_dict, section_boundaries, model_top_y, stress_objects_dict): # <-- _MODIFIED_ Added stress_objects_dict
     """Runs the main excavation loop, solving and recording data at each step."""
     model_width = config["MODEL_WIDTH"]
     start_x = config["LEFT_PILLAR_WIDTH"] - (model_width / 2.0)
@@ -330,9 +445,13 @@ def run_excavation_simulation(config, paths, ball_objects_dict, section_boundari
     num_steps = int((end_x - start_x) / step_width)
     
     y_disps_list = {}
+    stress_data_list = {} # <-- _ADDED_
     previous_ball_to_fragment_map = {}
     
     print(f"\n--- Starting Excavation Simulation ({num_steps} steps) ---")
+
+    # Define number of sections based on boundaries, this is the master count
+    num_sections = len(section_boundaries) - 1
 
     for i in range(num_steps):
         excavation_pos = start_x + i * step_width
@@ -361,9 +480,17 @@ def run_excavation_simulation(config, paths, ball_objects_dict, section_boundari
         process_fracture_data(i + 1, paths)
 
         # 3. Record surface displacement
-        sec_num = len(ball_objects_dict)
-        y_disps = [get_avg_ball_y_disp(ball_objects_dict[str(k)]) for k in range(sec_num)]
+        # <-- _MODIFIED_ (Bug Fix): Use .get(str(k), []) for safe access
+        y_disps = [get_avg_ball_y_disp(ball_objects_dict.get(str(k), [])) for k in range(num_sections)]
         y_disps_list[excavation_pos] = y_disps
+        
+        # 4. Record floor stress <-- _ADDED_
+        try:
+            # Use .get(str(k), []) for safe access
+            stress_vals = [get_avg_ball_yy_stress(stress_objects_dict.get(str(k), [])) for k in range(num_sections)]
+            stress_data_list[excavation_pos] = stress_vals
+        except Exception as e:
+            print(f"    -> ERROR: Failed to record stress data for step {i+1}. {e}")
         
         model_plot_height = 160
         rdmax = itasca.fish.get('rdmax')
@@ -377,7 +504,7 @@ def run_excavation_simulation(config, paths, ball_objects_dict, section_boundari
         )
     
     print("--- Excavation Simulation Complete ---")
-    return y_disps_list
+    return y_disps_list, stress_data_list # <-- _MODIFIED_ Return both datasets
 
 def save_results(config, paths, y_disps_list, section_boundaries):
     """Plots surface subsidence curves and saves all displacement data to a CSV file."""
@@ -386,13 +513,10 @@ def save_results(config, paths, y_disps_list, section_boundaries):
         return
         
     monitoring_point_x_coords = []
-    first_step_key = list(y_disps_list.keys())[0]
-    num_sections_in_data = len(y_disps_list[first_step_key])
-
+    # <-- _MODIFIED_ (Bug Fix): Calculate x_coords based on boundaries, not on data length
     for i in range(len(section_boundaries) - 1):
-        if i < num_sections_in_data:
-             x_center = (section_boundaries[i] + section_boundaries[i+1]) / 2.0
-             monitoring_point_x_coords.append(x_center)
+         x_center = (section_boundaries[i] + section_boundaries[i+1]) / 2.0
+         monitoring_point_x_coords.append(x_center)
 
     plt.figure(figsize=(12, 7))
     for excavation_pos, y_disps in y_disps_list.items():
@@ -422,10 +546,64 @@ def save_results(config, paths, y_disps_list, section_boundaries):
         for i in range(num_sections):
             row = [monitoring_point_x_coords[i]]
             for step in excavation_steps:
-                row.append(y_disps_list[step][i])
+                # Ensure data exists for this step, though it should
+                if step in y_disps_list and i < len(y_disps_list[step]):
+                    row.append(y_disps_list[step][i])
+                else:
+                    row.append(None) # Add placeholder if data is missing
             writer.writerow(row)
             
     print(f"INFO: Subsidence data saved to '{csv_file}'")
+
+# --- _ADDED_ ---
+def save_stress_results(config, paths, stress_data_list, section_boundaries):
+    """Plots floor stress curves and saves all stress data to a CSV file."""
+    if not stress_data_list:
+        print("WARNING: stress_data_list is empty, cannot save stress results.")
+        return
+        
+    monitoring_point_x_coords = []
+    for i in range(len(section_boundaries) - 1):
+        x_center = (section_boundaries[i] + section_boundaries[i+1]) / 2.0
+        monitoring_point_x_coords.append(x_center)
+
+    plt.figure(figsize=(12, 7))
+    for excavation_pos, stress_vals in stress_data_list.items():
+        if len(monitoring_point_x_coords) == len(stress_vals):
+            plt.plot(monitoring_point_x_coords, stress_vals, marker='o', linestyle='-',
+                     markersize=4, label=f'Excavated to {excavation_pos:.2f} m')
+
+    plt.xlabel('Horizontal Position (m)')
+    plt.xlim(-config["MODEL_WIDTH"] / 2.0, config["MODEL_WIDTH"] / 2.0)
+    plt.ylabel('Vertical Stress (Pa)')
+    plt.title('Floor Vertical Stress Curves')
+    plt.legend(loc='center left', bbox_to_anchor=(1, 0.5), ncol=1, fontsize='small')
+    plt.grid(True, linestyle='--', alpha=0.6)
+    plot_file = os.path.join(paths["img"], "floor_yy_stress_vs_section.png")
+    plt.savefig(plot_file, dpi=400, bbox_inches='tight')
+    plt.close()
+    print(f"INFO: Floor stress plot saved to '{plot_file}'")
+
+    csv_file = os.path.join(paths["root"], "floor_yy_stress_vs_section.csv")
+    excavation_steps = list(stress_data_list.keys())
+    header = ['Monitoring_Point_X_Position'] + [f'Excavated_to_{step:.2f}m' for step in excavation_steps]
+    
+    with open(csv_file, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(header)
+        num_sections = len(monitoring_point_x_coords)
+        for i in range(num_sections):
+            row = [monitoring_point_x_coords[i]]
+            for step in excavation_steps:
+                if step in stress_data_list and i < len(stress_data_list[step]):
+                    row.append(stress_data_list[step][i])
+                else:
+                    row.append(None)
+            writer.writerow(row)
+            
+    print(f"INFO: Floor stress data saved to '{csv_file}'")
+# --- _END_ADDED_ ---
+
 
 # ==============================================================================
 # MAIN EXECUTION
@@ -459,15 +637,28 @@ def main():
         # --- Stage 3: Setup for Excavation ---
         itasca.command("ball attribute velocity 0 spin 0 displacement 0")
         ball_objects_dict, section_boundaries, model_top_y = setup_monitoring_points(CONFIG, model_height)
+        stress_objects_dict = setup_stress_monitoring_sections(CONFIG, section_boundaries) # <-- _ADDED_
 
         # --- Stage 4: Run Excavation Simulation ---
-        y_disps_list = run_excavation_simulation(CONFIG, paths, ball_objects_dict, section_boundaries, model_top_y)
+        # <-- _MODIFIED_ to get both datasets
+        y_disps_list, stress_data_list = run_excavation_simulation(
+            CONFIG, paths, 
+            ball_objects_dict, section_boundaries, model_top_y, 
+            stress_objects_dict
+        )
         
         # --- Stage 5: Post-processing and Saving ---
         if y_disps_list:
             save_results(CONFIG, paths, y_disps_list, section_boundaries)
         else:
             print("WARNING: No excavation data was generated. Skipping results processing.")
+            
+        # <-- _ADDED_
+        if stress_data_list:
+            save_stress_results(CONFIG, paths, stress_data_list, section_boundaries)
+        else:
+            print("WARNING: No stress data was generated. Skipping stress results processing.")
+        # --- _END_ADDED_
             
         print("\nSimulation finished successfully.")
 
